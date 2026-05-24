@@ -6,6 +6,7 @@ const relationTypes = [
   "sameProofPattern",
   "implementationSimilarity",
   "examCooccurrence",
+  "evidenceCooccurrence",
   "contrast",
   "upgradePath",
   "taskPattern",
@@ -29,6 +30,7 @@ const relationFacetsByType = {
   sameProofPattern: ["proofRuntime"],
   implementationSimilarity: ["cPattern", "pseudocodePattern"],
   examCooccurrence: ["examForm"],
+  evidenceCooccurrence: ["examForm"],
   contrast: ["proofRuntime", "examForm"],
   upgradePath: ["mechanism"],
   taskPattern: ["examForm"],
@@ -271,6 +273,38 @@ function sourceRelation(source, item) {
   };
 }
 
+function sourceConceptPairs(source) {
+  if (!["exercise", "pastExam"].includes(source.type)) return [];
+  const bundleConcepts = (source.requiredBundles || [])
+    .map((bundle) => bundle.concept)
+    .filter(Boolean);
+  const conceptsForGravity = bundleConcepts.length
+    ? bundleConcepts
+    : source.concepts || [];
+  const concepts = unique(conceptsForGravity).slice(0, 9);
+  const pairs = [];
+  for (let i = 0; i < concepts.length; i++) {
+    for (let j = i + 1; j < concepts.length; j++) {
+      pairs.push({
+        source: concepts[i],
+        target: concepts[j],
+        type:
+          source.type === "pastExam"
+            ? "examCooccurrence"
+            : "evidenceCooccurrence",
+        weight:
+          Math.max(0.1, Math.min(1, source.weight || 0.5)) *
+          (source.type === "pastExam" ? 0.64 : 0.5),
+        label: source.id,
+        evidence: [source.id],
+        facets: ["examForm"],
+        sourceName: "sourceCooccurrence",
+      });
+    }
+  }
+  return pairs;
+}
+
 function mergeDuplicateRelations(items) {
   const merged = new Map();
   for (const raw of items) {
@@ -346,6 +380,85 @@ function conceptWeightBonus(concept) {
   return score;
 }
 
+function atlasScoreFor(node, weightedDegree, sourceEvidenceCount) {
+  if (node.id === "root") return 99;
+  const degreeScore = Math.min(2.4, (weightedDegree.get(node.id) || 0) * 0.26);
+  const evidenceScore = Math.min(
+    1.5,
+    (sourceEvidenceCount.get(node.id) || 0) * 0.12,
+  );
+  const cardScore = node.card ? 0.65 : 0;
+  const anchorScore = node.anchor ? 0.9 : 0;
+  const trapPenalty = node.kind === "examPattern" ? 1.2 : 0;
+  const generatedPenalty = node.generated ? 0.8 : 0;
+  return Math.max(
+    0,
+    (node.priority || 0) +
+      degreeScore +
+      evidenceScore +
+      cardScore +
+      anchorScore -
+      trapPenalty -
+      generatedPenalty,
+  );
+}
+
+const hubConceptIds = new Set([
+  "invariant",
+  "loopcount",
+  "recurrences",
+  "swap",
+  "scan",
+  "nestedloops",
+  "pointers",
+  "linked",
+  "stack",
+  "queue",
+  "heap",
+  "bst",
+  "avl",
+  "hashing",
+  "dpTemplate",
+  "graphState",
+  "bfs",
+  "dfs",
+  "weightedGraph",
+  "dijkstra",
+  "relaxation",
+  "priorityQueue",
+]);
+
+function assignVisualTiers(nodes) {
+  const presentHubIds = new Set(
+    [...hubConceptIds].filter((id) =>
+      nodes.some((node) => node.id === id && !node.generated),
+    ),
+  );
+  const conceptBudget = Math.max(0, 49 - presentHubIds.size);
+  const candidates = nodes
+    .filter((node) => node.id !== "root" && !node.generated)
+    .filter((node) => node.kind !== "examPattern" || node.atlasPromote)
+    .filter((node) => !presentHubIds.has(node.id))
+    .sort((a, b) => {
+      const scoreDelta = (b.atlasScore || 0) - (a.atlasScore || 0);
+      if (scoreDelta) return scoreDelta;
+      return String(a.id).localeCompare(String(b.id));
+    });
+  const cardIds = new Set(
+    candidates.slice(0, conceptBudget).map((node) => node.id),
+  );
+  for (const id of presentHubIds) cardIds.add(id);
+  return nodes.map((node) => {
+    let visualTier = "detail";
+    if (node.id === "root") visualTier = "hub";
+    else if (hubConceptIds.has(node.id)) visualTier = "hub";
+    else if (cardIds.has(node.id)) visualTier = "concept";
+    if (node.kind === "examPattern" && !node.atlasPromote)
+      visualTier = "detail";
+    return { ...node, visualTier };
+  });
+}
+
 function ensureConcept(nodes, id) {
   if (!id || nodes.has(id)) return;
   nodes.set(id, {
@@ -418,6 +531,11 @@ function buildSemanticGraph({
       ensureConcept(nodes, edge[0]);
       ensureConcept(nodes, edge[1]);
       allRelations.push(sourceRelation(source, edge));
+    }
+    for (const edge of sourceConceptPairs(source)) {
+      ensureConcept(nodes, edge.source);
+      ensureConcept(nodes, edge.target);
+      allRelations.push(edge);
     }
   }
 
@@ -497,13 +615,47 @@ function buildSemanticGraph({
     return true;
   });
 
-  const graphNodes = [...nodes.values()].map((node) => ({
-    ...node,
-    facets: inferFacets(node, codeCards),
-    taskTypes: mergeList(node.taskTypes, []),
-    evidence: mergeList(node.evidence, []),
-    priority: Math.max(0.1, (node.priority || 0) + conceptWeightBonus(node)),
-  }));
+  const weightedDegree = new Map();
+  for (const edge of links) {
+    weightedDegree.set(
+      edge.source,
+      (weightedDegree.get(edge.source) || 0) + (edge.weight || 0.5),
+    );
+    weightedDegree.set(
+      edge.target,
+      (weightedDegree.get(edge.target) || 0) + (edge.weight || 0.5),
+    );
+  }
+
+  const sourceEvidenceCount = new Map();
+  for (const node of nodes.values()) {
+    sourceEvidenceCount.set(node.id, unique(node.evidence || []).length);
+  }
+
+  const scoredNodes = [...nodes.values()].map((node) => {
+    const priority = Math.max(
+      0.1,
+      (node.priority || 0) + conceptWeightBonus(node),
+    );
+    const scored = {
+      ...node,
+      facets: inferFacets(node, codeCards),
+      taskTypes: mergeList(node.taskTypes, []),
+      evidence: mergeList(node.evidence, []),
+      priority,
+    };
+    scored.atlasScore = atlasScoreFor(
+      scored,
+      weightedDegree,
+      sourceEvidenceCount,
+    );
+    scored.weightedDegree = Number(
+      (weightedDegree.get(scored.id) || 0).toFixed(2),
+    );
+    return scored;
+  });
+
+  const graphNodes = assignVisualTiers(scoredNodes);
 
   return {
     nodes: graphNodes,

@@ -1,11 +1,20 @@
 :root {
   --paper: #f4f1e8;
   --ink: #111;
+  --charcoal: #171717;
   --red: #d51f1f;
   --cream: #fffaf0;
+  --detail: #f3eee2;
   --grey: #d8d2c3;
   --muted: #5b564e;
   --line: #111;
+  --arrays: #3b82f6;
+  --pointers: #0f766e;
+  --hashing: #b86a08;
+  --trees: #6d28d9;
+  --dp: #15803d;
+  --graphs: #4f46e5;
+  --proof-domain: #b08900;
   --c: #e8f0ff;
   --ds: #e8f7ee;
   --proof: #fff5d8;
@@ -280,8 +289,8 @@ li {
 .node polygon,
 .node rect {
   stroke: #111;
-  stroke-width: 2.5;
-  filter: drop-shadow(6px 6px 0 rgba(0, 0, 0, 0.95));
+  stroke-width: 3;
+  filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.78));
 }
 .node.selected polygon,
 .node.selected rect {
@@ -304,7 +313,7 @@ li {
   stroke-width: 3.4;
 }
 .node.dimmed {
-  opacity: 0.22;
+  opacity: 0.16;
 }
 .node.generated polygon,
 .node.generated rect {
@@ -319,7 +328,7 @@ li {
   fill: #111;
   text-anchor: middle;
   text-transform: uppercase;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
 }
 .small {
   font-size: 9.3px;
@@ -372,11 +381,11 @@ li {
 }
 .clusterField {
   fill: #fffaf0;
-  opacity: 0.78;
-  stroke: #111;
-  stroke-width: 3.4;
-  stroke-opacity: 0.42;
-  filter: drop-shadow(10px 10px 0 rgba(0, 0, 0, 0.12));
+  opacity: 0.94;
+  stroke: var(--cluster-color, #111);
+  stroke-width: 5.5;
+  stroke-opacity: 0.95;
+  filter: drop-shadow(10px 10px 0 rgba(0, 0, 0, 0.16));
 }
 .clusterMuted {
   opacity: 0.25;
@@ -384,81 +393,161 @@ li {
 .clusterRail {
   fill: none;
   stroke: #d51f1f;
-  stroke-width: 5;
+  stroke-width: 7;
   stroke-linecap: square;
-  opacity: 0.62;
+  opacity: 0.9;
 }
 .clusterLabel {
   fill: #111;
-  font-size: 24px;
+  font-size: 27px;
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
   paint-order: stroke;
   stroke: #f4f1e8;
-  stroke-width: 8px;
+  stroke-width: 9px;
   stroke-linejoin: round;
-  opacity: 0.62;
+  opacity: 0.88;
 }
-.semanticNode.kind-core polygon {
-  fill: #111;
+.semanticNode.rank-core polygon {
+  fill: var(--charcoal);
+  stroke: #111;
+  stroke-width: 5;
+  filter: drop-shadow(6px 6px 0 rgba(0, 0, 0, 0.82));
 }
-.semanticNode.kind-core .title,
-.semanticNode.kind-core .small {
-  fill: #fff;
+.semanticNode.rank-core .title,
+.semanticNode.rank-core .small {
+  fill: #fff8eb;
 }
-.semanticNode.kind-algorithm polygon {
-  fill: #fffaf0;
+.semanticNode.rank-core .title {
+  font-size: 15px;
 }
-.semanticNode.kind-mechanism polygon {
-  fill: #fffaf0;
+.semanticNode.rank-major polygon {
+  fill: var(--cream);
+  stroke-width: 4.4;
+  filter: drop-shadow(5px 5px 0 rgba(0, 0, 0, 0.8));
 }
-.semanticNode.kind-dataStructure polygon,
-.semanticNode.kind-representation polygon {
-  fill: #fffaf0;
+.semanticNode.rank-major .title {
+  font-size: 13.4px;
 }
-.semanticNode.kind-proofPattern polygon {
-  fill: #fff5d8;
+.semanticNode.rank-secondary polygon {
+  fill: var(--cream);
+  stroke-width: 3.2;
+}
+.semanticNode.rank-detail polygon {
+  fill: var(--detail);
+  stroke-width: 2.4;
+  filter: drop-shadow(3px 3px 0 rgba(0, 0, 0, 0.58));
+}
+.semanticNode.rank-detail .title {
+  font-size: 10.8px;
+}
+.semanticNode.form-hubCard polygon {
+  fill: var(--cream);
+  stroke-width: 4.4;
+  filter: drop-shadow(5px 5px 0 rgba(0, 0, 0, 0.8));
+}
+.semanticNode.form-hubCard .title {
+  font-size: 13.4px;
+}
+.semanticNode.form-conceptCard polygon {
+  fill: var(--cream);
+  stroke-width: 3.2;
+  filter: drop-shadow(4px 4px 0 rgba(0, 0, 0, 0.65));
+}
+.semanticNode.form-detailChip rect {
+  fill: var(--detail);
+  stroke-width: 1.8;
+  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.44));
+}
+.semanticNode.form-detailChip .title {
+  font-size: 7.5px;
+  font-weight: 900;
 }
 .semanticNode.kind-examPattern polygon {
   fill: #eeeeea;
 }
-.semanticNode.kind-mechanism polygon {
-  stroke-width: 4;
-  filter: drop-shadow(8px 8px 0 rgba(0, 0, 0, 0.96));
+.semanticNode.kind-examPattern.form-detailChip rect {
+  fill: #e8e4dc;
+  stroke-dasharray: 3 3;
 }
-.semanticNode.kind-proofPattern polygon,
-.semanticNode.kind-dataStructure polygon {
-  stroke-width: 3.4;
+.semanticNode.kind-proofPattern.rank-secondary polygon {
+  fill: #fff5d8;
 }
-.semanticNode.kind-examPattern {
-  opacity: 0.86;
+.semanticNode.domain-arrays polygon,
+.semanticNode.domain-arrays rect {
+  stroke: var(--arrays);
 }
-.semanticNode.domain-sorting polygon {
-  stroke: #111;
+.semanticNode.domain-pointers polygon,
+.semanticNode.domain-pointers rect,
+.semanticNode.domain-stackQueue polygon,
+.semanticNode.domain-stackQueue rect {
+  stroke: var(--pointers);
 }
-.semanticNode.domain-weightedGraphs polygon {
-  stroke: #582f9a;
+.semanticNode.domain-hashing polygon,
+.semanticNode.domain-hashing rect {
+  stroke: var(--hashing);
 }
-.semanticNode.domain-dp polygon {
-  stroke: #1d6f50;
+.semanticNode.domain-trees polygon,
+.semanticNode.domain-trees rect {
+  stroke: var(--trees);
 }
-.semanticNode.domain-hashing polygon {
-  stroke: #9a4d00;
+.semanticNode.domain-dp polygon,
+.semanticNode.domain-dp rect {
+  stroke: var(--dp);
 }
-.semanticNode.domain-stackQueue polygon {
-  stroke: #005d7a;
+.semanticNode.domain-graphs polygon,
+.semanticNode.domain-graphs rect {
+  stroke: var(--graphs);
 }
-.semanticNode.domain-proof polygon {
-  stroke: #8a1111;
+.semanticNode.domain-weightedGraphs polygon,
+.semanticNode.domain-weightedGraphs rect {
+  stroke: #5f3dc4;
 }
-.semanticNode.anchored polygon {
-  stroke: #d51f1f;
+.semanticNode.domain-proof polygon,
+.semanticNode.domain-proof rect {
+  stroke: var(--proof-domain);
+}
+.semanticNode.domain-recursion polygon,
+.semanticNode.domain-recursion rect {
+  stroke: #d4557d;
+}
+.semanticNode.domain-sorting polygon,
+.semanticNode.domain-sorting rect {
+  stroke: var(--red);
+}
+.semanticNode.anchored.rank-major polygon {
+  stroke-width: 5;
+}
+.semanticNode.selected {
+  opacity: 1;
+}
+.semanticNode.selected polygon {
+  fill: var(--charcoal);
+}
+.semanticNode.selected rect {
+  fill: var(--charcoal);
+}
+.semanticNode.selected .title,
+.semanticNode.selected .small {
+  fill: #fff8eb;
+}
+.semanticNode.circuitNear {
+  opacity: 1;
+}
+.semanticNode.circuitNear polygon {
+  stroke-width: 5;
+}
+.semanticNode.circuitNear rect {
+  stroke-width: 3;
+}
+.semanticNode.circuitFar {
+  opacity: 0.68;
 }
 .relation {
   fill: none;
   stroke: #111;
-  stroke-opacity: 0.58;
+  stroke-opacity: 0.78;
   pointer-events: none;
 }
 .relation.activeContext,
@@ -482,6 +571,7 @@ li {
   stroke: #111;
 }
 .relation-examCooccurrence,
+.relation-evidenceCooccurrence,
 .relation-taskPattern {
   stroke: #d51f1f;
   stroke-dasharray: 10 7;
@@ -502,6 +592,18 @@ li {
 .relation-upgradePath {
   stroke: #111;
   stroke-dasharray: 2 5;
+}
+.relation-implementationSimilarity,
+.relation-related {
+  stroke: #5b564e;
+  stroke-opacity: 0.38;
+}
+.circuitRelation {
+  stroke-opacity: 0.96;
+  stroke-width: 5.2px;
+}
+.selectedRelation {
+  stroke-width: 5.8px;
 }
 .relationLabel {
   font-size: 9px;

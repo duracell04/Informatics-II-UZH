@@ -24,12 +24,6 @@ const byId = new Map(laidOutGraph.nodes.map((node) => [node.id, node]));
 const sourceById = new Map(
   semanticGraph.sources.map((source) => [source.id, source]),
 );
-const enrichedConceptIds = new Set(concepts.map((concept) => concept.id));
-const semanticDegree = new Map(laidOutGraph.nodes.map((node) => [node.id, 0]));
-for (const link of laidOutGraph.links) {
-  semanticDegree.set(link.source, (semanticDegree.get(link.source) || 0) + 1);
-  semanticDegree.set(link.target, (semanticDegree.get(link.target) || 0) + 1);
-}
 const drillsByConcept = new Map();
 for (const drill of semanticGraph.drills) {
   if (!drillsByConcept.has(drill.concept))
@@ -87,6 +81,22 @@ const shortLabels = {
   recursion: "Recursion",
 };
 
+const structuralRelationTypes = new Set([
+  "usesMechanism",
+  "prerequisite",
+  "sameRepresentation",
+  "sameStatePattern",
+  "sameProofPattern",
+  "implementationSimilarity",
+]);
+
+const evidenceRelationTypes = new Set([
+  "examCooccurrence",
+  "evidenceCooccurrence",
+  "taskPattern",
+  "contrast",
+]);
+
 function unique(items) {
   return [...new Set((items || []).filter(Boolean))];
 }
@@ -138,41 +148,119 @@ function applyTransform() {
 }
 
 function nodeRadiusFor(node) {
-  if (node.id === "root") return 92;
-  const base =
-    node.kind === "mechanism"
-      ? 62
-      : node.kind === "proofPattern" || node.kind === "dataStructure"
-        ? 56
-        : node.kind === "examPattern"
-          ? 42
-          : 50;
-  return base + Math.min(26, Math.sqrt(node.priority || 0.1) * 10);
+  const tier = visualTier(node);
+  if (tier === "core") return node.id === "root" ? 108 : 84;
+  if (tier === "hub") return 72;
+  if (tier === "concept") return 58;
+  return 18;
 }
 
-function nodeLayout(node) {
-  const r = nodeRadiusFor(node);
-  const priorityBoost = Math.min(42, Math.sqrt(node.priority || 0.1) * 12);
-  const hierarchyBoost =
-    node.kind === "mechanism"
-      ? 28
-      : node.kind === "proofPattern" || node.kind === "dataStructure"
-        ? 16
-        : node.kind === "examPattern"
-          ? -18
-          : 0;
+function nodeLayout(node, context = null) {
+  const form = context
+    ? effectiveVisualForm(node, context)
+    : defaultVisualForm(node);
+  const tier = visualTier(node);
   const label = displayLabel(node);
-  const lines = wrap(label, node.id === "root" ? 12 : 13, 2);
+  const maxChars =
+    form === "detailChip"
+      ? 10
+      : tier === "core"
+        ? 15
+        : form === "hubCard"
+          ? 14
+          : form === "conceptCard"
+            ? 13
+            : 11;
+  const lines =
+    form === "detailChip" ? wrap(label, maxChars, 1) : wrap(label, maxChars, 2);
   const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  const minWidth =
+    form === "detailChip"
+      ? Math.max(18, Math.min(48, longest * 4.8 + 14))
+      : tier === "core"
+        ? node.id === "root"
+          ? 230
+          : 182
+        : form === "hubCard"
+          ? 150
+          : form === "conceptCard"
+            ? 126
+            : 96;
+  const maxWidth =
+    form === "detailChip"
+      ? 48
+      : tier === "core"
+        ? 245
+        : form === "hubCard"
+          ? 200
+          : form === "conceptCard"
+            ? 170
+            : 132;
   const w =
-    node.id === "root"
-      ? 210
-      : Math.max(118, Math.min(210, longest * 9 + 58 + hierarchyBoost));
+    form === "detailChip"
+      ? minWidth
+      : Math.max(minWidth, Math.min(maxWidth, longest * 9.2 + 52));
   const h =
-    node.id === "root"
-      ? 110
-      : 66 + Math.min(22, priorityBoost / 2) + Math.max(0, hierarchyBoost / 4);
-  return { r, w, h, lines, lineHeight: node.id === "root" ? 20 : 16 };
+    form === "detailChip"
+      ? 24
+      : tier === "core"
+        ? node.id === "root"
+          ? 118
+          : 92
+        : form === "hubCard"
+          ? 80
+          : form === "conceptCard"
+            ? 68
+            : 54;
+  return {
+    r: nodeRadiusFor(node),
+    w,
+    h,
+    lines,
+    form,
+    lineHeight: tier === "core" ? 20 : form === "hubCard" ? 17 : 15,
+  };
+}
+
+function nodeRank(node) {
+  if (node.id === "root" || node.kind === "core") return "core";
+  if (node.visualTier === "hub") return "major";
+  if (node.visualTier === "concept") return "secondary";
+  return "detail";
+}
+
+function visualTier(node) {
+  if (node.id === "root" || node.kind === "core") return "core";
+  return node.visualTier || "detail";
+}
+
+function defaultVisualForm(node) {
+  const tier = visualTier(node);
+  if (tier === "core" || tier === "hub") return "hubCard";
+  if (tier === "concept") return "conceptCard";
+  return "detailChip";
+}
+
+function effectiveVisualForm(node, context) {
+  const tier = visualTier(node);
+  if (tier === "core" || tier === "hub") return "hubCard";
+  if (tier === "concept") return "conceptCard";
+  const expanded =
+    node.id === selectedId ||
+    context.directMatches.has(node.id) ||
+    context.circuit?.nodes.has(node.id) ||
+    (context.hasContext && context.highlighted.has(node.id)) ||
+    transform.k >= 1.15;
+  return expanded ? "conceptCard" : "detailChip";
+}
+
+function shouldShowChipLabel(node, context) {
+  return (
+    transform.k >= 0.58 ||
+    node.id === selectedId ||
+    context.directMatches.has(node.id) ||
+    context.circuit?.nodes.has(node.id)
+  );
 }
 
 function wrap(text, max, maxLines = 3) {
@@ -261,13 +349,22 @@ function displayLabel(node) {
   if (node.shortName) return node.shortName;
   if (shortLabels[node.id]) return shortLabels[node.id];
   const label = node.label || node.id;
-  if (transform.k >= 1) return label;
   return label
     .replace(/\bSort\b/g, "")
     .replace(/\balgorithm\b/gi, "")
     .replace(/\bdynamic programming\b/gi, "DP")
     .replace(/\bpriority queue\b/gi, "PQ")
     .replace(/\bdirect addressing\b/gi, "Direct addr.")
+    .replace(/\bimplementation\b/gi, "impl.")
+    .replace(/\brecurrence\b/gi, "rec.")
+    .replace(/\bmaximum\b/gi, "max")
+    .replace(/\bminimum\b/gi, "min")
+    .replace(/\bdynamic\b/gi, "dyn.")
+    .replace(/\boperation\b/gi, "op.")
+    .replace(/\boperations\b/gi, "ops")
+    .split(/\s+/)
+    .slice(0, visualTier(node) === "detail" ? 3 : 4)
+    .join(" ")
     .trim();
 }
 
@@ -314,7 +411,11 @@ function activeDomainFilter() {
 
 function activeContext() {
   const q = searchInput.value.trim().toLowerCase();
-  const source = selectedSourceFromQuery(q) || null;
+  const evidenceId = evidenceFilter && evidenceFilter.value;
+  const source =
+    (evidenceId && sourceById.get(evidenceId)) ||
+    selectedSourceFromQuery(q) ||
+    null;
   const directMatches = new Set();
   const highlighted = new Set();
   const hasFilter =
@@ -349,47 +450,78 @@ function activeContext() {
     }
   }
 
+  const circuit = localCircuitForSelected();
   const hasContext = Boolean(q || hasFilter);
-  return { q, source, directMatches, highlighted, hasContext };
+  return {
+    q,
+    source,
+    directMatches,
+    highlighted,
+    hasContext,
+    circuit,
+    hasCircuit: circuit.active,
+  };
 }
 
 function shouldDim(node, context) {
-  if (!context.hasContext) return false;
-  return !context.highlighted.has(node.id);
-}
-
-function isLocalToSelected(id) {
-  if (selectedId === "root") return false;
-  return laidOutGraph.links.some(
-    (link) =>
-      (link.source === selectedId && link.target === id) ||
-      (link.target === selectedId && link.source === id),
-  );
-}
-
-function shouldShowInSemantic(node, context) {
-  if (node.id === "root" || node.id === selectedId) return true;
-  if (isLocalToSelected(node.id)) return true;
-  if (context.highlighted.has(node.id)) return true;
-  if (context.hasContext) return false;
-  if (transform.k < 0.46) {
-    return (
-      node.anchor ||
-      (enrichedConceptIds.has(node.id) &&
-        ["mechanism", "proofPattern", "dataStructure"].includes(node.kind)) ||
-      (node.priority || 0) >= 1.4
-    );
-  }
-  if (enrichedConceptIds.has(node.id)) return true;
   if (
-    transform.k >= 1.05 &&
-    (node.card || (semanticDegree.get(node.id) || 0) >= 2)
+    context.hasCircuit &&
+    !context.circuit.nodes.has(node.id) &&
+    !context.highlighted.has(node.id)
   ) {
     return true;
   }
-  if ((node.priority || 0) >= 0.8) return true;
-  if ((semanticDegree.get(node.id) || 0) >= 4) return true;
-  return false;
+  if (!context.hasContext) return false;
+  return (
+    !context.highlighted.has(node.id) && !context.circuit.nodes.has(node.id)
+  );
+}
+
+function localCircuitForSelected() {
+  const circuit = {
+    active: selectedId !== "root",
+    near: new Set(),
+    far: new Set(),
+    nodes: new Set(),
+    links: new Set(),
+  };
+  if (!circuit.active) return circuit;
+
+  circuit.nodes.add(selectedId);
+  const directLinks = laidOutGraph.links
+    .filter((link) => link.source === selectedId || link.target === selectedId)
+    .filter(isImportantCircuitRelation)
+    .sort((a, b) => (b.weight || 0) - (a.weight || 0))
+    .slice(0, 16);
+
+  for (const link of directLinks) {
+    const other = link.source === selectedId ? link.target : link.source;
+    circuit.near.add(other);
+    circuit.nodes.add(other);
+    circuit.links.add(linkKey(link));
+  }
+
+  for (const link of laidOutGraph.links) {
+    if (!isImportantCircuitRelation(link)) continue;
+    const sourceNear = circuit.near.has(link.source);
+    const targetNear = circuit.near.has(link.target);
+    if (!sourceNear && !targetNear) continue;
+    const other = sourceNear ? link.target : link.source;
+    if (other === selectedId || circuit.near.has(other)) continue;
+    circuit.far.add(other);
+    circuit.nodes.add(other);
+    circuit.links.add(linkKey(link));
+  }
+
+  return circuit;
+}
+
+function linkKey(link) {
+  return `${link.source}->${link.target}:${link.type}`;
+}
+
+function shouldShowInSemantic(node, context) {
+  return !node.hidden && node.id !== "root";
 }
 
 function defaultFitNodes() {
@@ -398,31 +530,56 @@ function defaultFitNodes() {
       (node) => node.id === "root" || node.parent,
     );
   }
-  const context = {
-    directMatches: new Set(),
-    highlighted: new Set(),
-    hasContext: false,
-  };
-  return laidOutGraph.nodes.filter((node) =>
-    shouldShowInSemantic(node, context),
+  return laidOutGraph.nodes.filter(
+    (node) => !node.hidden && node.id !== "root",
   );
 }
 
 function isPrimaryRelation(link) {
-  const structural = [
-    "usesMechanism",
-    "prerequisite",
-    "sameRepresentation",
-    "sameStatePattern",
-    "sameProofPattern",
-  ].includes(link.type);
-  return structural && (link.weight || 0) >= 0.68;
+  const structural = structuralRelationTypes.has(link.type);
+  return structural && (link.weight || 0) >= 0.62;
+}
+
+function isMacroPrimaryRelation(link) {
+  const source = byId.get(link.source);
+  const target = byId.get(link.target);
+  if (!source || !target) return false;
+  if (source.id === "root" || target.id === "root") return false;
+  if (source.primaryDomain && source.primaryDomain === target.primaryDomain) {
+    return true;
+  }
+  if (source.bridgeGroup || target.bridgeGroup) {
+    return (
+      source.bridgeGroup === target.bridgeGroup ||
+      source.primaryDomain === target.primaryDomain ||
+      (link.weight || 0) >= 0.74
+    );
+  }
+  return false;
+}
+
+function isEvidenceRelation(link) {
+  return (
+    evidenceRelationTypes.has(link.type) ||
+    (link.evidence || []).some((id) => String(id).startsWith("FS"))
+  );
+}
+
+function isImportantCircuitRelation(link) {
+  return (
+    isPrimaryRelation(link) ||
+    (isEvidenceRelation(link) && (link.weight || 0) >= 0.7) ||
+    (link.weight || 0) >= 0.82
+  );
+}
+
+function activeSourceId(context) {
+  const evidenceId = evidenceFilter && evidenceFilter.value;
+  return evidenceId || context.source?.id || "";
 }
 
 function relationClass(link) {
-  const evidence = (link.evidence || []).some((id) =>
-    String(id).startsWith("FS"),
-  );
+  const evidence = isEvidenceRelation(link);
   return `relation relation-${link.type} ${evidence ? "relationEvidence" : ""} ${
     isSelectedRelation(link) ? "selectedRelation" : ""
   } ${relationMatchesActiveLens(link) ? "facetLensRelation" : ""}`;
@@ -431,9 +588,20 @@ function relationClass(link) {
 function shouldShowRelation(link, context) {
   if (linkMode === "off") return isSelectedRelation(link);
   if (isSelectedRelation(link)) return true;
+  if (context.circuit?.links.has(linkKey(link))) return true;
+  const sourceId = activeSourceId(context);
+  if (sourceId) {
+    return (
+      (link.evidence || []).includes(sourceId) ||
+      (context.directMatches.has(link.source) &&
+        context.directMatches.has(link.target))
+    );
+  }
   if (linkMode === "primary") {
     return (
-      isPrimaryRelation(link) ||
+      (isPrimaryRelation(link) &&
+        isMacroPrimaryRelation(link) &&
+        (link.weight || 0) >= 0.74) ||
       context.directMatches.has(link.source) ||
       context.directMatches.has(link.target)
     );
@@ -455,9 +623,19 @@ function isSelectedRelation(link) {
 }
 
 function nodeClass(node, context) {
-  const classes = ["node", "semanticNode", `kind-${node.kind}`];
+  const form = effectiveVisualForm(node, context);
+  const classes = [
+    "node",
+    "semanticNode",
+    `kind-${node.kind}`,
+    `rank-${nodeRank(node)}`,
+    `tier-${visualTier(node)}`,
+    `form-${form}`,
+  ];
   for (const domain of node.domains || []) classes.push(`domain-${domain}`);
   if (node.id === selectedId) classes.push("selected");
+  if (context.circuit?.near.has(node.id)) classes.push("circuitNear");
+  if (context.circuit?.far.has(node.id)) classes.push("circuitFar");
   if (node.card && codeCards[node.card]) classes.push("hasCode");
   if (context.directMatches.has(node.id)) classes.push("match");
   if (nodeMatchesActiveLens(node)) classes.push("facetLensMatch");
@@ -515,6 +693,9 @@ function render() {
     );
     path.setAttribute("class", relationClass(link));
     path.setAttribute("stroke-width", 1.1 + Math.min(4, link.weight * 2.2));
+    if (context.circuit?.links.has(linkKey(link))) {
+      path.classList.add("circuitRelation");
+    }
     if (
       isSelectedRelation(link) ||
       (context.directMatches.has(link.source) &&
@@ -544,7 +725,7 @@ function render() {
   }
 
   for (const node of visibleNodes) {
-    const layout = nodeLayout(node);
+    const layout = nodeLayout(node, context);
     const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
     group.setAttribute("class", nodeClass(node, context));
     group.setAttribute("transform", `translate(${node.x},${node.y})`);
@@ -564,34 +745,46 @@ function render() {
 
     const shape = document.createElementNS(
       "http://www.w3.org/2000/svg",
-      "polygon",
+      layout.form === "detailChip" ? "rect" : "polygon",
     );
-    shape.setAttribute(
-      "points",
-      polyPoints(layout.w, layout.h, node.id === "root" ? 30 : 17),
-    );
+    if (layout.form === "detailChip") {
+      shape.setAttribute("x", -layout.w / 2);
+      shape.setAttribute("y", -layout.h / 2);
+      shape.setAttribute("width", layout.w);
+      shape.setAttribute("height", layout.h);
+      shape.setAttribute("rx", 5);
+    } else {
+      shape.setAttribute(
+        "points",
+        polyPoints(layout.w, layout.h, node.id === "root" ? 30 : 17),
+      );
+    }
     group.appendChild(shape);
 
-    const labelLines = wrap(
-      displayLabel(node),
-      node.id === "root" ? 12 : 13,
-      2,
-    );
-    labelLines.forEach((line, index) => {
-      const title = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "text",
-      );
-      title.setAttribute("class", "title");
-      title.setAttribute(
-        "y",
-        -6 + (index - (labelLines.length - 1) / 2) * layout.lineHeight,
-      );
-      title.textContent = line;
-      group.appendChild(title);
-    });
+    const labelLines = layout.lines;
+    if (layout.form !== "detailChip" || shouldShowChipLabel(node, context)) {
+      labelLines.forEach((line, index) => {
+        const title = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text",
+        );
+        title.setAttribute("class", "title");
+        title.setAttribute(
+          "y",
+          -6 + (index - (labelLines.length - 1) / 2) * layout.lineHeight,
+        );
+        title.textContent = line;
+        group.appendChild(title);
+      });
+    }
 
-    if (transform.k >= 0.78) {
+    const showSmallTag =
+      layout.form !== "detailChip" &&
+      (transform.k >= 1.05 ||
+        node.id === selectedId ||
+        context.directMatches.has(node.id) ||
+        ["core", "major"].includes(nodeRank(node)));
+    if (showSmallTag) {
       const small = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "text",
@@ -638,6 +831,7 @@ function renderClusters(clusterG, visibleNodes) {
       "transform",
       `translate(${cluster.x},${cluster.y}) rotate(${cluster.rotate || 0})`,
     );
+    group.style.setProperty("--cluster-color", cluster.color || "#d51f1f");
 
     const field = document.createElementNS(
       "http://www.w3.org/2000/svg",
@@ -723,6 +917,64 @@ function evidenceItems(node) {
   return unique(node.evidence || [])
     .map((id) => sourceById.get(id))
     .filter(Boolean);
+}
+
+function showSourceDetails(source) {
+  if (!source) return;
+  const connected = unique(source.concepts || [])
+    .map((id) => byId.get(id))
+    .filter(Boolean);
+  const strengthens = (source.strengthens || [])
+    .map(([a, b, type, weight]) => {
+      const left = byId.get(a);
+      const right = byId.get(b);
+      if (!left || !right) return "";
+      return `<li><button class="text-link" data-jump="${left.id}">${escapeHTML(left.label)}</button> -> <button class="text-link" data-jump="${right.id}">${escapeHTML(right.label)}</button> <span class="muted">(${escapeHTML(type)}, ${Number(weight || 0).toFixed(2)})</span></li>`;
+    })
+    .filter(Boolean)
+    .join("");
+  const bundles = (source.requiredBundles || [])
+    .slice(0, 10)
+    .map((bundle) => {
+      const node = byId.get(bundle.concept);
+      if (!node) return "";
+      const facets = Object.keys(bundle)
+        .filter((key) => key !== "concept")
+        .join(", ");
+      return `<li><button class="text-link" data-jump="${node.id}">${escapeHTML(node.label)}</button> <span class="muted">${escapeHTML(facets)}</span></li>`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  details.innerHTML = `
+    <h2>${escapeHTML(source.id)} - ${escapeHTML(source.title)}</h2>
+    <p>This ${escapeHTML(source.type)} is evidence. It highlights connected concepts and strengthens their semantic relations without becoming a map node.</p>
+    <div class="meta">
+      ${pillList([source.type])}
+      ${pillList(source.taskTypes, (task) => semanticGraph.taskTypes[task] || task)}
+      <span class="pill">weight ${Number(source.weight || 0).toFixed(2)}</span>
+    </div>
+    ${
+      connected.length
+        ? `<div class="section-title">Connected concepts</div><ul>${connected
+            .map(
+              (node) =>
+                `<li><button class="text-link" data-jump="${node.id}">${escapeHTML(node.label)}</button></li>`,
+            )
+            .join("")}</ul>`
+        : ""
+    }
+    ${
+      bundles
+        ? `<div class="section-title">Evidence bundles</div><ul>${bundles}</ul>`
+        : ""
+    }
+    ${
+      strengthens
+        ? `<div class="section-title">Strengthened relations</div><ul>${strengthens}</ul>`
+        : ""
+    }
+  `;
 }
 
 function showDetails(node) {
@@ -923,7 +1175,10 @@ details.addEventListener("click", (event) => {
   }
   const source = event.target.closest("[data-source]");
   if (source) {
-    searchInput.value = source.getAttribute("data-source");
+    const id = source.getAttribute("data-source");
+    searchInput.value = id;
+    if (evidenceFilter) evidenceFilter.value = id;
+    showSourceDetails(sourceById.get(id));
     render();
     return;
   }
@@ -953,11 +1208,23 @@ document.getElementById("resetView").onclick = () => {
   render();
 };
 
-for (const select of [domainFilter, kindFilter, taskFilter, evidenceFilter]) {
+for (const select of [domainFilter, kindFilter, taskFilter]) {
   if (select) select.addEventListener("change", render);
 }
 
-searchInput.addEventListener("input", render);
+if (evidenceFilter) {
+  evidenceFilter.addEventListener("change", () => {
+    const source = sourceById.get(evidenceFilter.value);
+    if (source) showSourceDetails(source);
+    render();
+  });
+}
+
+searchInput.addEventListener("input", () => {
+  const source = selectedSourceFromQuery(searchInput.value.trim());
+  if (source) showSourceDetails(source);
+  render();
+});
 
 svg.addEventListener(
   "wheel",
