@@ -142,6 +142,7 @@ function computeSemanticLayout(graph) {
     relaxGroupCollisions(groupId, placed);
     placedNodes.push(...placed);
   }
+  relaxGlobalCollisions(placedNodes);
 
   return {
     nodes: placedNodes,
@@ -275,23 +276,7 @@ function relaxGroupCollisions(groupId, nodes) {
       const a = nodes[i];
       for (let j = i + 1; j < nodes.length; j++) {
         const b = nodes[j];
-        const min = nodeRadius(a) + nodeRadius(b) + collisionGap(a, b);
-        let dx = b.x - a.x;
-        let dy = b.y - a.y;
-        let d = Math.hypot(dx, dy);
-        if (d < 0.01) {
-          dx = seededUnit(a.id + b.id, "dx") - 0.5;
-          dy = seededUnit(a.id + b.id, "dy") - 0.5;
-          d = Math.hypot(dx, dy) || 1;
-        }
-        if (d >= min) continue;
-        const push = ((min - d) / 2) * 0.76;
-        const fx = (dx / d) * push;
-        const fy = (dy / d) * push;
-        a.x -= fx;
-        a.y -= fy;
-        b.x += fx;
-        b.y += fy;
+        resolveFootprintOverlap(a, b, 0.78, 1);
       }
     }
 
@@ -301,12 +286,66 @@ function relaxGroupCollisions(groupId, nodes) {
   }
 }
 
+function relaxGlobalCollisions(nodes) {
+  const movableNodes = nodes.filter((node) => node.id !== "root");
+  for (let iter = 0; iter < 90; iter++) {
+    for (let i = 0; i < movableNodes.length; i++) {
+      const a = movableNodes[i];
+      for (let j = i + 1; j < movableNodes.length; j++) {
+        const b = movableNodes[j];
+        if (a.layoutGroup === b.layoutGroup) continue;
+        resolveFootprintOverlap(a, b, 0.34, 0.72);
+      }
+    }
+
+    if (iter % 3 !== 2) continue;
+    for (const node of movableNodes) {
+      clampToField(node, fieldForGroup(node.layoutGroup));
+    }
+  }
+}
+
+function resolveFootprintOverlap(a, b, strength, gapScale) {
+  let dx = b.x - a.x;
+  let dy = b.y - a.y;
+  if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
+    dx = seededUnit(a.id + b.id, "dx") - 0.5;
+    dy = seededUnit(a.id + b.id, "dy") - 0.5;
+  }
+
+  const gap = collisionGap(a, b) * gapScale;
+  const aFootprint = nodeFootprint(a);
+  const bFootprint = nodeFootprint(b);
+  const overlapX =
+    (aFootprint.width + bFootprint.width) / 2 + gap - Math.abs(dx);
+  const overlapY =
+    (aFootprint.height + bFootprint.height) / 2 +
+    Math.max(10, gap * 0.62) -
+    Math.abs(dy);
+  if (overlapX <= 0 || overlapY <= 0) return false;
+
+  if (overlapX < overlapY) {
+    const direction = dx < 0 ? -1 : 1;
+    const push = (overlapX / 2) * strength;
+    a.x -= direction * push;
+    b.x += direction * push;
+  } else {
+    const direction = dy < 0 ? -1 : 1;
+    const push = (overlapY / 2) * strength;
+    a.y -= direction * push;
+    b.y += direction * push;
+  }
+  return true;
+}
+
 function clampToField(node, field) {
-  const margin = nodeRadius(node) * 0.58;
+  const footprint = nodeFootprint(node);
+  const marginX = footprint.width / 2 + 18;
+  const marginY = footprint.height / 2 + 18;
   const dx = node.x - field.x;
   const dy = node.y - field.y;
-  const rx = Math.max(80, field.rx - margin);
-  const ry = Math.max(70, field.ry - margin);
+  const rx = Math.max(80, field.rx - marginX);
+  const ry = Math.max(70, field.ry - marginY);
   const normalized = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
   if (normalized <= 1) return;
   const scale = 1 / Math.sqrt(normalized);
@@ -327,6 +366,19 @@ function layoutRank(node) {
   if (node.visualTier === "hub") return "hub";
   if (node.visualTier === "concept") return "concept";
   return "detail";
+}
+
+function nodeFootprint(node) {
+  const rank = layoutRank(node);
+  if (rank === "core") {
+    return node.id === "root"
+      ? { width: 250, height: 140 }
+      : { width: 220, height: 112 };
+  }
+  if (rank === "hub") return { width: 220, height: 112 };
+  if (rank === "concept") return { width: 184, height: 92 };
+  if (node.card) return { width: 118, height: 64 };
+  return { width: 58, height: 34 };
 }
 
 function rankWeight(node) {

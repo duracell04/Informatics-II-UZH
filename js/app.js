@@ -250,7 +250,7 @@ function effectiveVisualForm(node, context) {
     context.directMatches.has(node.id) ||
     context.circuit?.nodes.has(node.id) ||
     (context.hasContext && context.highlighted.has(node.id)) ||
-    transform.k >= 1.15;
+    transform.k >= 1.85;
   return expanded ? "conceptCard" : "detailChip";
 }
 
@@ -769,10 +769,15 @@ function render() {
           "text",
         );
         title.setAttribute("class", "title");
-        title.setAttribute(
-          "y",
-          -6 + (index - (labelLines.length - 1) / 2) * layout.lineHeight,
-        );
+        if (layout.form === "detailChip") {
+          title.setAttribute("y", 1);
+          title.setAttribute("dominant-baseline", "middle");
+        } else {
+          title.setAttribute(
+            "y",
+            -6 + (index - (labelLines.length - 1) / 2) * layout.lineHeight,
+          );
+        }
         title.textContent = line;
         group.appendChild(title);
       });
@@ -811,6 +816,12 @@ function renderClusters(clusterG, visibleNodes) {
     visibleNodes.flatMap((node) => node.domains || []),
   );
   const selectedDomain = activeDomainFilter();
+  const showClusterTitles =
+    transform.k <= 0.62 &&
+    selectedId === "root" &&
+    !searchInput.value.trim() &&
+    !(evidenceFilter && evidenceFilter.value) &&
+    !activeFacetLenses.size;
   for (const cluster of semanticClusters || []) {
     const clusterDomains = cluster.domains || [cluster.id];
     const hasVisibleNode = clusterDomains.some((domain) =>
@@ -842,6 +853,19 @@ function renderClusters(clusterG, visibleNodes) {
     field.setAttribute("data-cluster", cluster.id);
     group.appendChild(field);
 
+    if (showClusterTitles) {
+      const titleBand = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "rect",
+      );
+      titleBand.setAttribute("class", "clusterTitleBand");
+      titleBand.setAttribute("x", -cluster.rx + 48);
+      titleBand.setAttribute("y", -cluster.ry - 110);
+      titleBand.setAttribute("width", cluster.rx * 2 - 96);
+      titleBand.setAttribute("height", 30);
+      group.appendChild(titleBand);
+    }
+
     const rail = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "polyline",
@@ -853,15 +877,17 @@ function renderClusters(clusterG, visibleNodes) {
     );
     group.appendChild(rail);
 
-    const label = document.createElementNS(
-      "http://www.w3.org/2000/svg",
-      "text",
-    );
-    label.setAttribute("class", "clusterLabel");
-    label.setAttribute("x", -cluster.rx + 32);
-    label.setAttribute("y", -cluster.ry + 34);
-    label.textContent = cluster.label;
-    group.appendChild(label);
+    if (showClusterTitles) {
+      const label = document.createElementNS(
+        "http://www.w3.org/2000/svg",
+        "text",
+      );
+      label.setAttribute("class", "clusterLabel");
+      label.setAttribute("x", 0);
+      label.setAttribute("y", -cluster.ry - 95);
+      label.textContent = cluster.label;
+      group.appendChild(label);
+    }
     clusterG.appendChild(group);
   }
 }

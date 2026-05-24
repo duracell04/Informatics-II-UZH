@@ -393,21 +393,30 @@ li {
 .clusterRail {
   fill: none;
   stroke: #d51f1f;
-  stroke-width: 7;
+  stroke-width: 5;
   stroke-linecap: square;
-  opacity: 0.9;
+  opacity: 0.42;
+}
+.clusterTitleBand {
+  fill: #fffaf0;
+  stroke: var(--cluster-color, #111);
+  stroke-width: 2;
+  stroke-opacity: 0.28;
+  opacity: 0.72;
 }
 .clusterLabel {
   fill: #111;
-  font-size: 27px;
+  font-size: 16px;
   font-weight: 900;
   letter-spacing: 0;
   text-transform: uppercase;
+  text-anchor: middle;
+  dominant-baseline: middle;
   paint-order: stroke;
   stroke: #f4f1e8;
-  stroke-width: 9px;
+  stroke-width: 4px;
   stroke-linejoin: round;
-  opacity: 0.88;
+  opacity: 0.46;
 }
 .semanticNode.rank-core polygon {
   fill: var(--charcoal);
