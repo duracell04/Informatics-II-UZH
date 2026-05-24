@@ -1,0 +1,12 @@
+{
+  "name": "informatics-ii-uzh-map",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "format": "prettier --write js/data.js js/codeCards.js js/crossLinks.js js/app.js css/style.css index.html README.md",
+    "format:check": "prettier --check js/data.js js/codeCards.js js/crossLinks.js js/app.js css/style.css index.html README.md"
+  },
+  "devDependencies": {
+    "prettier": "^3.5.3"
+  }
+}
