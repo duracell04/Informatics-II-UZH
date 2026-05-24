@@ -129,6 +129,11 @@ button:hover {
   background: #d51f1f;
   color: white;
 }
+button.lensToggle.active {
+  background: #111;
+  color: #fffaf0;
+  box-shadow: 4px 4px 0 #d51f1f;
+}
 #stageWrap {
   position: relative;
   overflow: hidden;
@@ -288,6 +293,11 @@ li {
   stroke: #d51f1f;
   stroke-width: 4;
   stroke-dasharray: 7 4;
+}
+.node.facetLensMatch polygon,
+.node.facetLensMatch rect {
+  stroke: #d51f1f;
+  stroke-width: 4.6;
 }
 .node.hasCode polygon,
 .node.hasCode rect {
@@ -479,6 +489,11 @@ li {
 .relationEvidence {
   stroke: #d51f1f;
   stroke-dasharray: 10 7;
+}
+.facetLensRelation {
+  stroke: #d51f1f;
+  stroke-opacity: 0.95;
+  stroke-width: 4.2;
 }
 .relation-contrast {
   stroke: #d51f1f;

@@ -12,6 +12,29 @@ const relationTypes = [
   "related",
 ];
 
+const facetNames = [
+  "representation",
+  "cPattern",
+  "pseudocodePattern",
+  "mechanism",
+  "proofRuntime",
+  "examForm",
+];
+
+const relationFacetsByType = {
+  prerequisite: ["mechanism"],
+  usesMechanism: ["mechanism"],
+  sameRepresentation: ["representation"],
+  sameStatePattern: ["representation", "mechanism"],
+  sameProofPattern: ["proofRuntime"],
+  implementationSimilarity: ["cPattern", "pseudocodePattern"],
+  examCooccurrence: ["examForm"],
+  contrast: ["proofRuntime", "examForm"],
+  upgradePath: ["mechanism"],
+  taskPattern: ["examForm"],
+  related: [],
+};
+
 const taskTypeLabels = {
   writeC: "Write C",
   traceArray: "Trace array",
@@ -72,6 +95,116 @@ function mergeList(a, b) {
   return unique([...(a || []), ...(b || [])]);
 }
 
+function normalizeFacets(facets = {}) {
+  const out = {};
+  for (const name of facetNames) out[name] = unique(facets[name] || []);
+  return out;
+}
+
+function mergeFacets(a, b) {
+  const left = normalizeFacets(a);
+  const right = normalizeFacets(b);
+  const out = {};
+  for (const name of facetNames) {
+    out[name] = mergeList(left[name], right[name]);
+  }
+  return out;
+}
+
+function taskFacetLabels(taskTypes) {
+  return unique((taskTypes || []).map((task) => taskTypeLabels[task] || task));
+}
+
+function cardPatternHints(card) {
+  if (!card) return { cPattern: [], pseudocodePattern: [] };
+  const text =
+    `${card.kind || ""} ${card.title || ""} ${card.note || ""}`.toLowerCase();
+  return {
+    cPattern:
+      text.includes(" c ") ||
+      text.includes("c-like") ||
+      text.includes("malloc") ||
+      text.includes("printf")
+        ? [card.title || "C pattern"]
+        : [],
+    pseudocodePattern:
+      text.includes("pseudocode") ||
+      text.includes("algorithm") ||
+      text.includes("trace") ||
+      text.includes("adt")
+        ? [card.title || "pseudocode pattern"]
+        : [],
+  };
+}
+
+function inferFacets(node, codeCards) {
+  const card = node.card && codeCards ? codeCards[node.card] : null;
+  const cardHints = cardPatternHints(card);
+  const taskLabels = taskFacetLabels(node.taskTypes);
+  const representation = mergeList(node.representations, node.state);
+  const mechanism = mergeList(node.mechanisms, node.builds);
+  const proofRuntime = unique([
+    ...(node.proofPatterns || []),
+    node.invariant,
+    node.runtime,
+    (node.taskTypes || []).includes("runtime") ? "runtime analysis" : "",
+    (node.taskTypes || []).includes("invariant") ? "correctness invariant" : "",
+    (node.taskTypes || []).includes("recurrence") ? "recurrence solving" : "",
+  ]);
+  const cPattern = unique([
+    ...cardHints.cPattern,
+    (node.taskTypes || []).includes("writeC") ? "C implementation" : "",
+    (node.taskTypes || []).includes("traceOutput") ? "C execution trace" : "",
+    (node.taskTypes || []).includes("traceArray") ? "C array trace" : "",
+  ]);
+  const pseudocodePattern = unique([
+    ...cardHints.pseudocodePattern,
+    (node.taskTypes || []).includes("pseudocode") ? "pseudocode" : "",
+    (node.taskTypes || []).includes("adtOnly") ? "ADT-only operations" : "",
+    (node.taskTypes || []).includes("fillHelperTable")
+      ? "helper-table fill"
+      : "",
+    (node.taskTypes || []).includes("manualTrace") ? "manual trace" : "",
+  ]);
+  const inferred = {
+    representation:
+      representation.length || node.kind === "dataStructure"
+        ? representation.length
+          ? representation
+          : node.domains
+        : [],
+    cPattern,
+    pseudocodePattern,
+    mechanism: mechanism.length ? mechanism : [node.summary || node.label],
+    proofRuntime,
+    examForm: unique([...(node.exam || []), ...taskLabels]),
+  };
+
+  const merged = mergeFacets(inferred, node.facets);
+  if (
+    node.kind === "algorithm" &&
+    !merged.representation.length &&
+    (node.domains || []).length
+  ) {
+    merged.representation = [...node.domains];
+  }
+  if (
+    ["algorithm", "proofPattern", "dataStructure"].includes(node.kind) &&
+    !merged.proofRuntime.length
+  ) {
+    merged.proofRuntime = ["correctness / runtime reasoning"];
+  }
+  if (
+    ["algorithm", "proofPattern", "dataStructure", "examPattern"].includes(
+      node.kind,
+    ) &&
+    !merged.examForm.length
+  ) {
+    merged.examForm = ["exam task"];
+  }
+  return merged;
+}
+
 function flattenLegacyTree(node, parentId = null, topLevel = null, out = []) {
   if (!node || skippedLegacyIds.has(node.id)) return out;
   const nextTop = parentId === "root" ? node.id : topLevel;
@@ -107,16 +240,21 @@ function normalizeRelation(edge, sourceName = "relations") {
       weight: 0.45,
       label,
       evidence: [],
+      facets: [],
       sourceName,
     };
   }
-  return {
+  const normalized = {
     type: "related",
     weight: 0.5,
     evidence: [],
     ...edge,
     sourceName,
   };
+  normalized.facets = unique(
+    normalized.facets || relationFacetsByType[normalized.type] || [],
+  );
+  return normalized;
 }
 
 function sourceRelation(source, item) {
@@ -128,6 +266,7 @@ function sourceRelation(source, item) {
     weight: Math.max(0.1, Math.min(1, strength || 0.5)) * (source.weight || 1),
     label: source.id,
     evidence: [source.id],
+    facets: relationFacetsByType[type] || [],
     sourceName: "sources",
   };
 }
@@ -146,6 +285,7 @@ function mergeDuplicateRelations(items) {
         ...edge,
         weight: Math.max(0.1, Math.min(1.5, edge.weight || 0.5)),
         evidence: unique(edge.evidence || []),
+        facets: unique(edge.facets || relationFacetsByType[edge.type] || []),
       });
       continue;
     }
@@ -154,6 +294,7 @@ function mergeDuplicateRelations(items) {
       Math.min(1.5, current.weight + (edge.weight || 0.4) * 0.35),
     );
     current.evidence = mergeList(current.evidence, edge.evidence);
+    current.facets = mergeList(current.facets, edge.facets);
     current.label = current.label || edge.label;
   }
   return [...merged.values()];
@@ -247,6 +388,10 @@ function buildSemanticGraph({
       ...current,
       ...override,
       label: override.label || current.label || override.id,
+      card:
+        override.card ||
+        current.card ||
+        (codeCards && codeCards[override.id] ? override.id : undefined),
       domains: mergeList(current.domains, override.domains),
       mechanisms: mergeList(current.mechanisms, override.mechanisms),
       representations: mergeList(
@@ -254,6 +399,7 @@ function buildSemanticGraph({
         override.representations,
       ),
       proofPatterns: mergeList(current.proofPatterns, override.proofPatterns),
+      facets: mergeFacets(current.facets, override.facets),
       taskTypes: mergeList(current.taskTypes, override.taskTypes),
       sourceRefs: mergeList(current.sourceRefs, override.sourceRefs),
       evidence: mergeList(current.evidence, override.sourceRefs),
@@ -293,6 +439,7 @@ function buildSemanticGraph({
         weight: node.parent === "root" ? 0.38 : 0.28,
         label: "syllabus",
         evidence: [],
+        facets: [],
         sourceName: "legacyTree",
       });
     }
@@ -344,6 +491,7 @@ function buildSemanticGraph({
     }
     const a = nodes.get(edge.source);
     const b = nodes.get(edge.target);
+    edge.facets = unique(edge.facets || relationFacetsByType[edge.type] || []);
     a.evidence = mergeList(a.evidence, edge.evidence);
     b.evidence = mergeList(b.evidence, edge.evidence);
     return true;
@@ -351,6 +499,7 @@ function buildSemanticGraph({
 
   const graphNodes = [...nodes.values()].map((node) => ({
     ...node,
+    facets: inferFacets(node, codeCards),
     taskTypes: mergeList(node.taskTypes, []),
     evidence: mergeList(node.evidence, []),
     priority: Math.max(0.1, (node.priority || 0) + conceptWeightBonus(node)),
@@ -362,6 +511,7 @@ function buildSemanticGraph({
     sources: sources || [],
     drills: drills || [],
     relationTypes,
+    facetNames,
     taskTypes: taskTypeLabels,
     sourceById,
     sourceConcepts,

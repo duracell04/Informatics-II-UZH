@@ -519,6 +519,85 @@ Exam trap:
   T(n)=4T(n-1)+O(1) describes recursive drawing work,
   not this length recurrence.`,
   },
+  backwardSubstitution: {
+    title: "Backward substitution",
+    kind: "recurrence worksheet",
+    note: "Expand until the base case, then simplify the accumulated level costs.",
+    deps: ["recurrences"],
+    code: `Example:
+  T(n) = 3T(n/3) + n
+
+Expand:
+  T(n) = 3[3T(n/9) + n/3] + n
+       = 9T(n/9) + 2n
+       = 27T(n/27) + 3n
+       = 3^k T(n/3^k) + k n
+
+Stop:
+  n/3^k = 1  =>  k = log_3 n
+
+Result:
+  T(n) = n T(1) + n log_3 n = Theta(n log n)`,
+  },
+  masterWorksheet: {
+    title: "Master Method worksheet",
+    kind: "recurrence decision card",
+    note: "Use Master only for T(n)=aT(n/b)+f(n); otherwise switch to substitution or a recursion tree.",
+    deps: ["recurrences", "backwardSubstitution"],
+    code: `For T(n) = aT(n/b) + f(n):
+  1. identify a, b, f(n)
+  2. compute n^(log_b a)
+  3. compare f(n) with n^(log_b a)
+
+Cases:
+  f smaller polynomially  -> Theta(n^(log_b a))
+  f same order           -> Theta(n^(log_b a) log n)
+  f larger polynomially  -> Theta(f(n)) if regularity holds
+
+No-case traps:
+  unequal subproblem sizes
+  additive/subtractive recursive arguments
+  f(n) not comparable by a polynomial gap`,
+  },
+  substitution: {
+    title: "Substitution proof",
+    kind: "runtime proof pattern",
+    note: "Guess a bound, plug it into the recurrence, and choose constants so the induction closes.",
+    deps: ["recurrences", "invariant"],
+    code: `To prove T(n) <= c g(n):
+  assume T(m) <= c g(m) for smaller m
+  substitute into the recurrence
+  simplify until the expression is <= c g(n)
+  choose c large enough for lower-order terms
+  check base cases separately
+
+Exam habit:
+  state the induction hypothesis before substituting
+  do not hide the constant choice`,
+  },
+  functionGrowthRanking: {
+    title: "Function growth ranking",
+    kind: "asymptotic comparison card",
+    note: "FS23-style true/false tasks mostly test the standard growth ladder and log/power identities.",
+    deps: ["bigO", "bestWorstAvg"],
+    code: `Typical increasing order:
+  1
+  log log n
+  log n
+  n^epsilon
+  n
+  n log n
+  n^2
+  n^k
+  c^n
+  n!
+
+Useful checks:
+  log_a n and log_b n differ only by a constant
+  n^a beats (log n)^b for any fixed a > 0
+  c^n beats n^k for fixed c > 1
+  compare sums by the dominant term`,
+  },
   binaryPrint: {
     title: "Recursive binary print order",
     kind: "C recursion",
@@ -760,6 +839,30 @@ struct node *deleteHead(struct node *head) {
 
 4. predecessor/guard pointer:
    keep a pointer before the deletion/insertion position`,
+  },
+  linkedListRearrangementTrace: {
+    title: "Linked-list rearrangement trace",
+    kind: "pointer trace card",
+    note: "Track every live pointer variable and save next before overwriting a next field.",
+    deps: ["linked", "pointers", "headChangingAdt"],
+    code: `Trace columns:
+  h / head
+  cur
+  next
+  temp / tail
+  changed next field
+  printed value if any
+
+Pointer-safety rules:
+  save next = cur->next before relinking cur->next
+  update the head explicitly if the first node changes
+  never follow a pointer after its incoming link was overwritten
+  count only assignments that actually change a next pointer
+
+Minimal-change habit:
+  draw old arrows
+  mark the target order
+  change only the links whose endpoints differ`,
   },
   queueTwoStacks: {
     title: "Queue using two stacks",
@@ -1210,11 +1313,13 @@ Study priority:
 }`,
   },
   shortestRootLeaf: {
-    title: "Shortest root-leaf distance BFS",
-    kind: "pseudocode",
-    note: "First leaf dequeued is shortest because BFS expands by levels.",
-    deps: ["queue", "bfs"],
-    code: `shortestDist(root):
+    title: "Shortest root-leaf distance",
+    kind: "BFS and recursion",
+    note: "BFS returns the first leaf by level; recursion needs careful empty-child cases.",
+    deps: ["queue", "bfs", "recursion", "binaryTree"],
+    code: `BFS version:
+shortestDist(root):
+    if root == NULL: return -1
     Q = initQueue()
     root.aux = 0
     enqueue(Q, root)
@@ -1222,7 +1327,17 @@ Study priority:
         p = dequeue(Q)
         if p.left == NULL and p.right == NULL: return p.aux
         if p.left  != NULL: p.left.aux  = p.aux+1; enqueue(Q,p.left)
-        if p.right != NULL: p.right.aux = p.aux+1; enqueue(Q,p.right)`,
+        if p.right != NULL: p.right.aux = p.aux+1; enqueue(Q,p.right)
+
+Recursive version:
+shortestDistRec(p):
+    if p == NULL: return INF
+    if p.left == NULL and p.right == NULL: return 0
+    return 1 + min(shortestDistRec(p.left),
+                   shortestDistRec(p.right))
+
+Trap:
+  a missing child must not contribute distance 0`,
   },
   matrixPath: {
     title: "DP helper matrix: longest path",
@@ -1707,7 +1822,7 @@ Trace rules:
     title: "Prim-Jarnik MST",
     kind: "weighted graph algorithm",
     note: "Same priority queue shape as Dijkstra, but key is cheapest edge into tree, not distance from source.",
-    deps: ["priorityQueue", "cutLightEdge"],
+    deps: ["priorityQueue", "cutLightEdgeProof"],
     code: `Prim(G,r):
   for each v: v.key = infinity; v.pred = NIL
   r.key = 0
@@ -1750,6 +1865,27 @@ Rules:
   if disconnected: minimum spanning forest / no single spanning tree
   minimizes total edge weight
   is not a shortest-path tree`,
+  },
+  cutLightEdgeProof: {
+    title: "Cut/light-edge theorem proof",
+    kind: "MST proof pattern",
+    note: "A light edge crossing a cut that respects the partial MST is safe by an exchange argument.",
+    deps: ["mst", "safeEdge", "primJarnik"],
+    code: `Definitions:
+  A = current set of MST edges
+  cut (S, V-S) respects A if no edge of A crosses it
+  light edge = minimum-weight edge crossing the cut
+
+Exchange proof shape:
+  take an MST T that contains A
+  if T already contains light edge e, done
+  otherwise add e to T, creating one cycle
+  that cycle has another edge f crossing the same cut
+  because e is light, w(e) <= w(f)
+  replace f by e; the result is still an MST and contains A union {e}
+
+Conclusion:
+  the light crossing edge is safe`,
   },
   kruskal: {
     title: "Kruskal MST",
@@ -1805,6 +1941,575 @@ therefore:
 
 Trace columns:
   i | A[i] | num before | count before | print? | num after | count after`,
+  },
+  compileRunC: {
+    title: "Compile and run C",
+    kind: "C workflow",
+    note: "Know the source file, executable, arguments and printed output state.",
+    deps: ["traceOutput"],
+    code: `Compile:
+  gcc -Wall -Wextra main.c -o main
+
+Run:
+  ./main arg1 arg2
+
+Checklist:
+  argc counts the program name
+  argv[0] is the executable name
+  argv[i] is a string
+  printed output follows the executed control flow`,
+  },
+  linearSearchVariants: {
+    title: "Linear search variants",
+    kind: "C pattern",
+    note: "The specification decides whether to return an index, boolean, count or sentinel.",
+    deps: ["scan", "boundaries"],
+    code: `int firstIndex(int A[], int n, int x) {
+    for (int i = 0; i < n; i++) {
+        if (A[i] == x) return i;
+    }
+    return -1;
+}
+
+Common variants:
+  stop at first match
+  scan all to find last match
+  count all matches
+  return 0/1 for membership`,
+  },
+  secondLargest: {
+    title: "Second largest",
+    kind: "C scan",
+    note: "Track two pieces of state and define how duplicates should behave.",
+    deps: ["scan", "edgeCases"],
+    code: `int secondLargest(int A[], int n) {
+    int max1 = A[0] > A[1] ? A[0] : A[1];
+    int max2 = A[0] > A[1] ? A[1] : A[0];
+    for (int i = 2; i < n; i++) {
+        if (A[i] > max1) {
+            max2 = max1;
+            max1 = A[i];
+        } else if (A[i] > max2) {
+            max2 = A[i];
+        }
+    }
+    return max2;
+}`,
+  },
+  diagonalSum: {
+    title: "Main diagonal sum",
+    kind: "matrix C pattern",
+    note: "A square matrix diagonal can be summed with one loop.",
+    deps: ["matrix"],
+    code: `int diagonalSum(int n, int A[n][n]) {
+    int sum = 0;
+    for (int i = 0; i < n; i++) {
+        sum += A[i][i];
+    }
+    return sum;
+}
+
+Runtime:
+  direct diagonal loop: Theta(n)
+  nested loop with if (i == j): Theta(n^2)`,
+  },
+  palRec: {
+    title: "Palindrome recursion",
+    kind: "C recursion",
+    note: "Compare ends, shrink inward, and stop on empty or one-character substrings.",
+    deps: ["recursion", "cStrings"],
+    code: `int isPal(char s[], int l, int r) {
+    if (l >= r) return 1;
+    if (s[l] != s[r]) return 0;
+    return isPal(s, l + 1, r - 1);
+}
+
+Base cases:
+  l == r: one character
+  l > r: empty middle`,
+  },
+  countOccurrenceSorted: {
+    title: "Count occurrences with sorted helper array",
+    kind: "search/runtime card",
+    note: "Use binary search when one input is sorted and extra memory is restricted.",
+    deps: ["binarySearch", "linearSearchVariants"],
+    code: `countMatches(A1,n1,A2,n2):
+  count = 0
+  for each x in A1:
+    if binarySearch(A2,n2,x) != -1:
+      count++
+  return count
+
+Runtime:
+  A1 unsorted, A2 sorted: Theta(n1 log n2)`,
+  },
+  coupledLoopSum: {
+    title: "Coupled-loop sum",
+    kind: "exact counting card",
+    note: "Write the summation before simplifying when an inner bound depends on the outer index.",
+    deps: ["exactAnalysisWorkflow"],
+    code: `Pattern:
+for (int i = 0; i < n; i++) {
+    for (int j = i; j < n; j++) work();
+}
+
+Count:
+  sum_{i=0}^{n-1} (n - i)
+  = n + (n-1) + ... + 1
+  = n(n+1)/2
+  = Theta(n^2)`,
+  },
+  taRecurrence: {
+    title: "Ta(n)=2Ta(n-1)+c recurrence",
+    kind: "substitution card",
+    note: "Print small values, guess exponential growth, then prove by substitution.",
+    deps: ["substitution", "recurrences"],
+    code: `T(n) = 2T(n-1) + c
+
+Expand:
+  T(n) = 2[2T(n-2)+c] + c
+       = 4T(n-2) + 3c
+       = 2^k T(n-k) + (2^k-1)c
+
+Stop at k = n:
+  T(n) = 2^n T(0) + (2^n-1)c
+       = Theta(2^n)`,
+  },
+  dynamicArrayGrowth: {
+    title: "Dynamic array growth",
+    kind: "amortized analysis card",
+    note: "Geometric resizing gives amortized constant append; additive resizing does not.",
+    deps: ["dynamicArrays", "amortized"],
+    code: `Append with doubling:
+  if size == capacity:
+    allocate 2*capacity
+    copy existing elements
+    free old array
+  insert new item
+
+Reason:
+  total copied elements over n appends is O(n)
+  amortized append cost is O(1)`,
+  },
+  heapTraceTable: {
+    title: "Heap trace table",
+    kind: "heap trace",
+    note: "Record active heap size and every real exchange, not just comparisons.",
+    deps: ["heapify", "heapSort"],
+    code: `Columns:
+  active heap size
+  heapify index
+  selected child
+  exchange?
+  array after exchange
+
+HeapSort trace:
+  build heap
+  swap root with last active slot
+  shrink active heap size
+  heapify root inside active prefix`,
+  },
+  buildHeapExchangeCount: {
+    title: "BuildHeap exchange count",
+    kind: "heap trace",
+    note: "Run heapify from the last internal node down to the root and count actual swaps.",
+    deps: ["buildHeap", "heapify"],
+    code: `BuildHeap(A):
+  exchanges = 0
+  for i = floor(n/2)-1 downto 0:
+    exchanges += heapifyAndCount(A,n,i)
+
+Do not count:
+  comparisons
+  recursive calls
+  inspected children without a swap`,
+  },
+  dualPivotTrace: {
+    title: "Dual-pivot quicksort trace",
+    kind: "partition trace",
+    note: "Track the three regions and final pivot placement.",
+    deps: ["quick", "swap"],
+    code: `State:
+  p = left pivot
+  q = right pivot
+  lt = boundary of < p
+  i  = current scan index
+  gt = boundary of > q
+
+Regions:
+  [lo+1..lt-1] < p
+  [lt..i-1] between p and q
+  [gt+1..hi-1] > q`,
+  },
+  pointerPrintAddresses: {
+    title: "Pointer address tracing",
+    kind: "C trace card",
+    note: "Distinguish address-of, pointer value, pointer variable address and dereferenced value.",
+    deps: ["pointers"],
+    code: `int a = 7;
+int *p = &a;
+
+Meanings:
+  &a   address of a
+  p    stored address, same as &a
+  &p   address of pointer variable p
+  *p   value stored at address p, here 7`,
+  },
+  mallocCopyFree: {
+    title: "malloc-copy-free",
+    kind: "C memory trace",
+    note: "A copied value remains valid after freeing the heap cell; the freed pointer must not be dereferenced.",
+    deps: ["mallocFree", "pointers"],
+    code: `int *p = malloc(sizeof(int));
+*p = 42;
+int x = *p;
+free(p);
+p = NULL;
+
+After free:
+  x is still 42
+  *p is invalid
+  freeing does not erase copied values`,
+  },
+  cPassByValue: {
+    title: "C passes by value",
+    kind: "C semantics card",
+    note: "Functions receive copies. Caller state changes require addresses and dereferencing.",
+    deps: ["pointers"],
+    code: `void badSwap(int a, int b) {
+    int t = a; a = b; b = t;
+}
+
+void goodSwap(int *a, int *b) {
+    int t = *a; *a = *b; *b = t;
+}
+
+Call:
+  goodSwap(&x, &y);`,
+  },
+  arrayAssignmentInvalid: {
+    title: "Array assignment invalid",
+    kind: "C array rule",
+    note: "Array variables are not assignable; pointer variables may store an array's first-element address.",
+    deps: ["arrayDecay", "pointers"],
+    code: `int a[3] = {1,2,3};
+int b[3];
+int *p;
+
+b = a;      // invalid
+p = a;      // valid, same as &a[0]
+*(a + 1);   // same as a[1]`,
+  },
+  arrayDecay: {
+    title: "Array name as pointer",
+    kind: "C array rule",
+    note: "In most expressions, A decays to &A[0], but sizeof(A) in the same scope sees the full array.",
+    deps: ["pointers"],
+    code: `int A[5];
+int *p = A;
+
+Equivalences:
+  A        behaves like &A[0] in expressions
+  A[i]     is *(A + i)
+  &A[i]    is A + i
+
+Exception:
+  sizeof(A) is 5 * sizeof(int) in the declaring scope`,
+  },
+  pointerOffsetSwap: {
+    title: "Pointer-offset swap",
+    kind: "C trace card",
+    note: "Passing &A[k] changes the logical base address inside the callee.",
+    deps: ["pointers", "arrayDecay"],
+    code: `void swapAt(int *B, int i, int j) {
+    int t = B[i];
+    B[i] = B[j];
+    B[j] = t;
+}
+
+Call:
+  swapAt(&A[1], 2, 3)
+
+Physical slots:
+  B[2] is A[3]
+  B[3] is A[4]`,
+  },
+  dynamicReversePrependOwnership: {
+    title: "Dynamic reverse/prepend ownership",
+    kind: "C allocation card",
+    note: "Allocate the new array, write all elements, return the new pointer and define who frees it.",
+    deps: ["dynamicArrays", "mallocFree"],
+    code: `int *prependReverse(int A[], int n, int x) {
+    int *B = malloc((n + 1) * sizeof(int));
+    B[0] = x;
+    for (int i = 0; i < n; i++) {
+        B[i + 1] = A[n - 1 - i];
+    }
+    return B; // caller frees B
+}`,
+  },
+  arrayToLinkedList: {
+    title: "Array to linked list",
+    kind: "C linked-list pattern",
+    note: "Use a tail pointer to preserve order without reversing at the end.",
+    deps: ["linked", "mallocFree"],
+    code: `struct node *fromArray(int A[], int n) {
+    struct node *head = NULL, *tail = NULL;
+    for (int i = 0; i < n; i++) {
+        struct node *p = malloc(sizeof(struct node));
+        p->value = A[i];
+        p->next = NULL;
+        if (head == NULL) head = p;
+        else tail->next = p;
+        tail = p;
+    }
+    return head;
+}`,
+  },
+  arrayStackImplementation: {
+    title: "Stack using array",
+    kind: "ADT implementation",
+    note: "The top index names the next free slot or the current top; state the convention.",
+    deps: ["stack", "arrays"],
+    code: `push(S,x):
+  if top == capacity: overflow
+  A[top] = x
+  top++
+
+pop(S):
+  if top == 0: underflow
+  top--
+  return A[top]`,
+  },
+  arrayCircularQueueImplementation: {
+    title: "Circular queue using array",
+    kind: "ADT implementation",
+    note: "Modulo arithmetic distinguishes wraparound; keep size or reserve one slot.",
+    deps: ["queue", "arrays"],
+    code: `enqueue(Q,x):
+  if size == capacity: overflow
+  A[tail] = x
+  tail = (tail + 1) mod capacity
+  size++
+
+dequeue(Q):
+  if size == 0: underflow
+  x = A[head]
+  head = (head + 1) mod capacity
+  size--
+  return x`,
+  },
+  linearProbe: {
+    title: "Linear probing",
+    kind: "hash trace card",
+    note: "Probe consecutive slots and stop search only when an empty slot proves absence.",
+    deps: ["openAddress", "hashFunction"],
+    code: `h(k,i) = (h1(k) + i) mod m
+
+Insert trace:
+  i | slot | content | action
+
+Search rule:
+  key found -> success
+  empty slot -> not found
+  occupied other key -> continue`,
+  },
+  doubleHash: {
+    title: "Double hashing",
+    kind: "hash trace card",
+    note: "The second hash is the step size; it must be nonzero and should be coprime with table size.",
+    deps: ["openAddress", "hashFunction"],
+    code: `h(k,i) = (h1(k) + i*h2(k)) mod m
+
+Trace:
+  i = 0,1,2,...
+  compute h2(k) once
+  add the step repeatedly modulo m
+
+Trap:
+  if gcd(h2(k), m) != 1, not every slot is reachable`,
+  },
+  frequencyArray: {
+    title: "Frequency array",
+    kind: "direct-address C pattern",
+    note: "Initialize every counter before counting and justify the key range.",
+    deps: ["directAddressing", "counting"],
+    code: `void countKeys(int A[], int n, int F[], int k) {
+    for (int i = 0; i <= k; i++) F[i] = 0;
+    for (int i = 0; i < n; i++) F[A[i]]++;
+}
+
+Assumption:
+  every key is an integer in 0..k`,
+  },
+  directAddressing: {
+    title: "Direct addressing",
+    kind: "array representation",
+    note: "A key is used directly as an array index, so the universe must be small enough.",
+    deps: ["arrays"],
+    code: `Representation:
+  T[key] stores the count, flag or record for that key
+
+Operations:
+  insert key: T[key] = value or T[key]++
+  search key: inspect T[key]
+
+Cost:
+  O(1) access, O(U) memory for universe size U`,
+  },
+  possibleBfsSequence: {
+    title: "Possible BFS sequence",
+    kind: "graph trace check",
+    note: "BFS order may vary inside a layer, but it cannot visit a deeper layer before a shallower one.",
+    deps: ["bfs", "queue"],
+    code: `Check:
+  assign each vertex its distance from the source
+  valid BFS order is nondecreasing by distance
+  neighbors discovered from earlier queued vertices come first
+
+Reject:
+  a distance-2 vertex before all reachable distance-1 vertices`,
+  },
+  possibleDfsSequence: {
+    title: "Possible DFS sequence",
+    kind: "graph trace check",
+    note: "DFS follows one branch deeply before returning to siblings.",
+    deps: ["dfs"],
+    code: `Check:
+  maintain a recursion stack
+  the next vertex must be an unvisited neighbor of the current stack top
+  if no such neighbor exists, backtrack
+
+Reject:
+  jumping to a sibling while the current branch can still continue`,
+  },
+  undirectedCycleDetection: {
+    title: "Undirected cycle detection",
+    kind: "DFS pseudocode",
+    note: "In an undirected graph, the edge back to the parent is not a cycle.",
+    deps: ["dfs", "cycle"],
+    code: `hasCycle(u,parent):
+  visited[u] = true
+  for each v in Adj[u]:
+    if !visited[v]:
+      if hasCycle(v,u): return true
+    else if v != parent:
+      return true
+  return false`,
+  },
+  allSimplePathsCount: {
+    title: "All simple paths count",
+    kind: "DFS backtracking",
+    note: "Use path-local visited state and unmark when returning.",
+    deps: ["allPaths", "dfs"],
+    code: `countPaths(u,t):
+  if u == t: return 1
+  visited[u] = true
+  total = 0
+  for each v in Adj[u]:
+    if !visited[v]:
+      total += countPaths(v,t)
+  visited[u] = false
+  return total
+
+Worst case:
+  exponential number of simple paths`,
+  },
+  kHopExact: {
+    title: "k-hop exactly k",
+    kind: "BFS distance task",
+    note: "Exactly k means BFS distance equals k, not merely some walk of length k.",
+    deps: ["khop", "bfs"],
+    code: `kHop(G,s,k):
+  run BFS from s
+  for each vertex v:
+    if dist[v] == k:
+      output v
+
+Edge cases:
+  k = 0 outputs the source
+  unreachable vertices have infinity distance`,
+  },
+  logLoops: {
+    title: "Logarithmic loops",
+    kind: "runtime card",
+    note: "Multiplying or dividing a loop variable by a constant gives logarithmic iteration count.",
+    deps: ["exactAnalysisWorkflow"],
+    code: `for (int i = 1; i < n; i *= 2) work();
+  iterations = floor(log_2 n)
+
+for (int i = n; i > 0; i /= 2) work();
+  iterations = floor(log_2 n) + 1
+
+Branch trap:
+  best and worst case may choose different update paths`,
+  },
+  bestWorstAvg: {
+    title: "Best, worst and average case",
+    kind: "runtime classification card",
+    note: "State which input family triggers the count; do not report one runtime for all branches unless the branch-independent count proves it.",
+    deps: ["exactAnalysisWorkflow", "edgeCases"],
+    code: `Best case:
+  minimum work over valid inputs of size n
+
+Worst case:
+  maximum work over valid inputs of size n
+
+Average case:
+  expected work under a stated input distribution
+
+Branch-loop trap:
+  identify the condition that chooses the shorter or longer update path
+  count each path separately before simplifying`,
+  },
+  stackSort: {
+    title: "Stack sorting under ADT rules",
+    kind: "ADT pseudocode",
+    note: "Use only push, pop, top/isEmpty; no array indexing into the stack.",
+    deps: ["stack", "adtRules"],
+    code: `sortStack(S):
+  T = empty stack
+  while !isEmpty(S):
+    x = pop(S)
+    while !isEmpty(T) and top(T) > x:
+      push(S, pop(T))
+    push(T, x)
+  return T
+
+Invariant:
+  T is sorted using only stack operations`,
+  },
+  selectionLogic: {
+    title: "Selection logic",
+    kind: "scan pattern",
+    note: "Maintain exactly the extrema needed by the task, including negative-value edge cases.",
+    deps: ["scan", "edgeCases"],
+    code: `Maximum product of three values:
+  track largest1, largest2, largest3
+  track smallest1, smallest2
+
+Answer:
+  max(largest1 * largest2 * largest3,
+      largest1 * smallest1 * smallest2)
+
+Reason:
+  two negative values can make a large positive product`,
+  },
+  traceOutput: {
+    title: "Trace printed output",
+    kind: "execution trace card",
+    note: "Record print events in execution order, especially around recursive calls.",
+    deps: ["recursion"],
+    code: `Trace table:
+  call depth
+  parameters
+  branch taken
+  print event before recursion
+  recursive calls
+  print event after recursion
+
+Rule:
+  output order is the order print statements execute, not the order calls return`,
   },
   edgeCases: {
     title: "Edge-case checklist",

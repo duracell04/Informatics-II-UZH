@@ -8,6 +8,7 @@ const domainFilter = document.getElementById("domainFilter");
 const kindFilter = document.getElementById("kindFilter");
 const taskFilter = document.getElementById("taskFilter");
 const evidenceFilter = document.getElementById("evidenceFilter");
+const facetLensButtons = [...document.querySelectorAll("[data-facet-lens]")];
 
 const semanticGraph = buildSemanticGraph({
   data,
@@ -42,6 +43,7 @@ let last = null;
 let selectedId = "root";
 let linkMode = "primary";
 let layoutMode = "semantic";
+const activeFacetLenses = new Set();
 
 const shortLabels = {
   root: "INF II",
@@ -244,6 +246,7 @@ function nodeSearchText(node) {
     mechanisms: node.mechanisms,
     representations: node.representations,
     proofPatterns: node.proofPatterns,
+    facets: node.facets,
     taskTypes: node.taskTypes,
     evidence: node.evidence,
     summary: node.summary,
@@ -280,6 +283,31 @@ function filterMatch(node) {
   return true;
 }
 
+function lensFacetKeys(facet) {
+  return facet === "cPattern" ? ["cPattern", "pseudocodePattern"] : [facet];
+}
+
+function nodeMatchesActiveLens(node) {
+  if (!activeFacetLenses.size) return false;
+  for (const facet of activeFacetLenses) {
+    for (const key of lensFacetKeys(facet)) {
+      if ((node.facets?.[key] || []).length) return true;
+    }
+  }
+  return false;
+}
+
+function relationMatchesActiveLens(link) {
+  if (!activeFacetLenses.size) return false;
+  const linkFacets = new Set(link.facets || []);
+  for (const facet of activeFacetLenses) {
+    for (const key of lensFacetKeys(facet)) {
+      if (linkFacets.has(key)) return true;
+    }
+  }
+  return false;
+}
+
 function activeDomainFilter() {
   return domainFilter && domainFilter.value ? domainFilter.value : "";
 }
@@ -293,13 +321,20 @@ function activeContext() {
     (domainFilter && domainFilter.value) ||
     (kindFilter && kindFilter.value) ||
     (taskFilter && taskFilter.value) ||
-    (evidenceFilter && evidenceFilter.value);
+    (evidenceFilter && evidenceFilter.value) ||
+    activeFacetLenses.size;
 
   for (const node of laidOutGraph.nodes) {
     const matchesSource = source && (source.concepts || []).includes(node.id);
     const matchesText = q && nodeSearchText(node).includes(q);
     const matchesFilter = filterMatch(node);
-    if (matchesSource || matchesText || (!q && hasFilter && matchesFilter)) {
+    const matchesLens = nodeMatchesActiveLens(node);
+    if (
+      matchesSource ||
+      matchesText ||
+      matchesLens ||
+      (!q && hasFilter && matchesFilter)
+    ) {
       directMatches.add(node.id);
       highlighted.add(node.id);
     }
@@ -308,6 +343,10 @@ function activeContext() {
   for (const link of laidOutGraph.links) {
     if (directMatches.has(link.source)) highlighted.add(link.target);
     if (directMatches.has(link.target)) highlighted.add(link.source);
+    if (relationMatchesActiveLens(link)) {
+      highlighted.add(link.source);
+      highlighted.add(link.target);
+    }
   }
 
   const hasContext = Boolean(q || hasFilter);
@@ -386,7 +425,7 @@ function relationClass(link) {
   );
   return `relation relation-${link.type} ${evidence ? "relationEvidence" : ""} ${
     isSelectedRelation(link) ? "selectedRelation" : ""
-  }`;
+  } ${relationMatchesActiveLens(link) ? "facetLensRelation" : ""}`;
 }
 
 function shouldShowRelation(link, context) {
@@ -421,6 +460,7 @@ function nodeClass(node, context) {
   if (node.id === selectedId) classes.push("selected");
   if (node.card && codeCards[node.card]) classes.push("hasCode");
   if (context.directMatches.has(node.id)) classes.push("match");
+  if (nodeMatchesActiveLens(node)) classes.push("facetLensMatch");
   if (shouldDim(node, context)) classes.push("dimmed");
   if (node.generated) classes.push("generated");
   if (node.anchor) classes.push("anchored");
@@ -570,6 +610,7 @@ function render() {
   applyTransform();
   updateModeButton();
   updateLinkModeButton();
+  updateFacetLensButtons();
 }
 
 function renderClusters(clusterG, visibleNodes) {
@@ -651,6 +692,14 @@ function htmlList(title, items, mapper = (item) => item) {
     .join("")}</ul>`;
 }
 
+function facetList(title, items) {
+  const clean = unique(items || []);
+  if (!clean.length) return "";
+  return `<div class="facet-section"><div class="section-title">${title}</div><ul>${clean
+    .map((item) => `<li>${escapeHTML(item)}</li>`)
+    .join("")}</ul></div>`;
+}
+
 function pillList(items, mapper = (item) => item) {
   return unique(items || [])
     .map((item) => `<span class="pill">${mapper(item)}</span>`)
@@ -681,6 +730,7 @@ function showDetails(node) {
   const hasCode = Boolean(codeCards[cardId]);
   const evidence = evidenceItems(node);
   const nodeDrills = drillsByConcept.get(node.id) || [];
+  const facets = node.facets || {};
   const relationsHtml = relationGroupsFor(node.id)
     .map(([type, items]) => {
       const links = items
@@ -704,13 +754,15 @@ function showDetails(node) {
       <span class="pill">priority ${Number(node.priority || 0).toFixed(1)}</span>
     </div>
     ${htmlList("State", node.state)}
-    ${htmlList("Mechanisms", node.mechanisms)}
-    ${htmlList("Representations", node.representations)}
-    ${htmlList("Proof patterns", node.proofPatterns)}
-    ${node.invariant ? `<div class="section-title">Invariant</div><p>${escapeHTML(node.invariant)}</p>` : ""}
-    ${node.runtime ? `<div class="section-title">Runtime</div><p>${escapeHTML(node.runtime)}</p>` : ""}
+    ${facetList("Representation", facets.representation)}
+    ${facetList("C / Pseudocode Pattern", [
+      ...(facets.cPattern || []),
+      ...(facets.pseudocodePattern || []),
+    ])}
+    ${facetList("Mechanism", facets.mechanism)}
+    ${facetList("Invariant / Runtime", facets.proofRuntime)}
+    ${facetList("Exam Forms", facets.examForm)}
     ${htmlList("Edge cases", node.edgeCases)}
-    ${htmlList("Task types", node.taskTypes, (item) => semanticGraph.taskTypes[item] || item)}
     ${
       evidence.length
         ? `<div class="section-title">Evidence</div><ul>${evidence
@@ -836,6 +888,13 @@ function updateModeButton() {
     layoutMode === "semantic" ? "Semantic mode" : "Syllabus mode";
 }
 
+function updateFacetLensButtons() {
+  for (const button of facetLensButtons) {
+    const lens = button.getAttribute("data-facet-lens");
+    button.classList.toggle("active", activeFacetLenses.has(lens));
+  }
+}
+
 function toggleMode() {
   layoutMode = layoutMode === "semantic" ? "syllabus" : "semantic";
   render();
@@ -846,6 +905,8 @@ function resetFilters() {
   if (kindFilter) kindFilter.value = "";
   if (taskFilter) taskFilter.value = "";
   if (evidenceFilter) evidenceFilter.value = "";
+  activeFacetLenses.clear();
+  updateFacetLensButtons();
   searchInput.value = "";
   selectedId = "root";
   showDetails(byId.get("root"));
@@ -870,6 +931,15 @@ details.addEventListener("click", (event) => {
 
 if (linkModeToggle) linkModeToggle.onclick = cycleLinkMode;
 if (modeToggle) modeToggle.onclick = toggleMode;
+for (const button of facetLensButtons) {
+  button.onclick = () => {
+    const lens = button.getAttribute("data-facet-lens");
+    if (activeFacetLenses.has(lens)) activeFacetLenses.delete(lens);
+    else activeFacetLenses.add(lens);
+    updateFacetLensButtons();
+    render();
+  };
+}
 document.getElementById("expandAll").onclick = resetFilters;
 document.getElementById("collapseAll").onclick = () => {
   layoutMode = "semantic";
