@@ -1,315 +1,131 @@
-function majorAngle(id, fallback) {
-  const map = {
-    workflow: -Math.PI / 2,
-    cbase: -1.05,
-    sorting: -0.55,
-    complexity: 0,
-    recursion: 0.55,
-    pointersAdt: 1.05,
-    hashing: 1.55,
-    trees: 2.1,
-    dp: 2.65,
-    graphs: -3.12,
-    weightedGraphs: -2.55,
-    examPatterns: -2.05,
-  };
-  return map[id] ?? fallback;
-}
-
-function orderIndex(order, id) {
-  const i = order.indexOf(id);
-  return i === -1 ? Number.POSITIVE_INFINITY : i;
-}
-
-function orderedChildren(parent) {
-  const kids = [...(parent.children || [])];
-  const orders = {
-    sorting: [
-      "counting",
-      "sort3",
-      "heapSort",
-      "quick",
-      "merge",
-      "insertion",
-      "selection",
-      "xsort",
-      "bubble",
-      "stackSort",
-      "pairSum",
-      "pairSumSorted",
-    ],
-    complexity: [
-      "bigO",
-      "bestWorstAvg",
-      "loopcount",
-      "exactAnalysisWorkflow",
-      "topKSelectionAnalysis",
-      "logLoops",
-      "recurrences",
-      "master",
-      "substitution",
-      "recursionTree",
-      "asymmetricRecursionTree",
-      "invariant",
-      "edgeCases",
-    ],
-    recursion: [
-      "palRec",
-      "hilbertRecurrence",
-      "binaryPrint",
-      "hanoi",
-      "pyramid",
-      "binarySearch",
-      "maxSubarray",
-    ],
-    pointersAdt: [
-      "pointers",
-      "linked",
-      "reverseLinked",
-      "stack",
-      "queue",
-      "twoStacksOneArray",
-      "queueTwoStacks",
-      "stackTwoQueues",
-      "stackLinkedList",
-      "queueLinkedList",
-      "linkedInsertDelete",
-      "headChangingAdt",
-      "reverseEven",
-      "adtRules",
-      "kthLargestStack",
-      "amortized",
-    ],
-    hashing: [
-      "directAddressing",
-      "frequencyArray",
-      "hashFunction",
-      "chaining",
-      "chainingOrder",
-      "searchChain",
-      "loadFactor",
-      "openAddress",
-      "linearProbe",
-      "quadraticProbe",
-      "linearClustering",
-      "doubleHash",
-      "deleteHash",
-      "tombstoneRepair",
-      "hashApps",
-      "printOverlap",
-      "targetSumHash",
-    ],
-    trees: [
-      "dictionary",
-      "binaryTree",
-      "expressionTree",
-      "reconstructTree",
-      "catalanBstShapes",
-      "treeTraversal",
-      "bst",
-      "bstMinMax",
-      "bstInsert",
-      "bstDelete",
-      "successor",
-      "bstVsHeap",
-      "lrlp",
-      "shortestRootLeaf",
-      "printTreeLevels",
-      "avl",
-      "rotations",
-      "avlCases",
-      "redBlackHistorical",
-      "heap",
-      "heapify",
-      "buildHeap",
-      "daryHeap",
-    ],
-    graphs: [
-      "graphTerminology",
-      "adjacency",
-      "graphState",
-      "bfs",
-      "dfs",
-      "cycle",
-      "allPaths",
-      "khop",
-      "edgeTypes",
-      "topologicalSort",
-    ],
-    weightedGraphs: [
-      "weightedGraph",
-      "mst",
-      "cutLightEdge",
-      "primJarnik",
-      "primTrace",
-      "kruskal",
-      "priorityQueue",
-      "sssp",
-      "relaxation",
-      "bellmanFord",
-      "bellmanFordDetails",
-      "bellmanFordTrace",
-      "dagSSSP",
-      "dijkstra",
-      "dijkstraAssumptions",
-      "dijkstraTrace",
-      "negativeCycle",
-      "arbitrage",
-    ],
-    dp: [
-      "dpTemplate",
-      "memoization",
-      "matrixPath",
-      "palCuts",
-      "bigPlus",
-      "editDistance",
-      "maxProduct",
-      "nearestZero",
-      "matrixChain",
-      "lcs",
-      "coinChange",
-      "solutionReconstruction",
-    ],
-  };
-  if (orders[parent.id]) {
-    return kids.sort(
-      (a, b) =>
-        orderIndex(orders[parent.id], a.id) -
-        orderIndex(orders[parent.id], b.id),
-    );
-  }
-  return kids;
-}
-
 const svg = document.getElementById("svg");
 const viewport = document.getElementById("viewport");
 const details = document.getElementById("details");
 const searchInput = document.getElementById("search");
 const linkModeToggle = document.getElementById("linkModeToggle");
+const modeToggle = document.getElementById("modeToggle");
+const domainFilter = document.getElementById("domainFilter");
+const kindFilter = document.getElementById("kindFilter");
+const taskFilter = document.getElementById("taskFilter");
+const evidenceFilter = document.getElementById("evidenceFilter");
 
-let transform = { x: 0, y: 0, k: 0.82 };
+const semanticGraph = buildSemanticGraph({
+  data,
+  concepts,
+  relations,
+  sources,
+  drills,
+  crossLinks,
+  codeCards,
+});
+const laidOutGraph = computeSemanticLayout(semanticGraph);
+const byId = new Map(laidOutGraph.nodes.map((node) => [node.id, node]));
+const sourceById = new Map(
+  semanticGraph.sources.map((source) => [source.id, source]),
+);
+const enrichedConceptIds = new Set(concepts.map((concept) => concept.id));
+const semanticDegree = new Map(laidOutGraph.nodes.map((node) => [node.id, 0]));
+for (const link of laidOutGraph.links) {
+  semanticDegree.set(link.source, (semanticDegree.get(link.source) || 0) + 1);
+  semanticDegree.set(link.target, (semanticDegree.get(link.target) || 0) + 1);
+}
+const drillsByConcept = new Map();
+for (const drill of semanticGraph.drills) {
+  if (!drillsByConcept.has(drill.concept))
+    drillsByConcept.set(drill.concept, []);
+  drillsByConcept.get(drill.concept).push(drill);
+}
+
+let transform = { x: 0, y: 0, k: 0.72 };
 let dragging = false;
 let last = null;
 let selectedId = "root";
-let linkMode = "all";
+let linkMode = "primary";
+let layoutMode = "semantic";
 
-const R1 = 500;
-const R2_BASE = 790;
-const R3_BASE = 1240;
-const CHILD_STEP = 76;
-const GRAND_STEP = 92;
-const DENSE_BRANCH_BOOST = 68;
-const CORE_RADIUS = 122;
-const majorW = 248;
-const majorH = 92;
-const childW = 218;
-const childH = 76;
+const shortLabels = {
+  root: "INF II",
+  bubble: "Bubble",
+  selection: "Select",
+  insertion: "Insert",
+  heapSort: "HeapSort",
+  counting: "CountSort",
+  quick: "Quick",
+  merge: "Merge",
+  xsort: "XSort",
+  swap: "Swap",
+  nestedloops: "Nested loops",
+  directAddressing: "Direct addr.",
+  frequencyArray: "Freq array",
+  kthLargestStack: "kth Stack",
+  selectionLogic: "Selection",
+  auxiliaryStack: "Aux stack",
+  stack: "Stack",
+  queue: "Queue",
+  bfs: "BFS",
+  dfs: "DFS",
+  khop: "k-hop",
+  dijkstra: "Dijkstra",
+  bellmanFord: "Bellman",
+  dagSSSP: "DAG SSSP",
+  negativeCycle: "Neg cycle",
+  relaxation: "Relax",
+  priorityQueue: "PQ",
+  dpTemplate: "DP",
+  helperTable: "Helper table",
+  palCuts: "Pal cuts",
+  heapify: "Heapify",
+  buildHeap: "BuildHeap",
+  heap: "Heap",
+  bst: "BST",
+  avl: "AVL",
+  rotations: "AVL rot.",
+  invariant: "Invariant",
+  loopcount: "Loop count",
+  recursion: "Recursion",
+};
 
-function allNodes(n = data, arr = []) {
-  arr.push(n);
-  (n.children || []).forEach((c) => allNodes(c, arr));
-  return arr;
+function unique(items) {
+  return [...new Set((items || []).filter(Boolean))];
 }
 
-const byId = new Map(allNodes().map((n) => [n.id, n]));
-
-function initCollapse(n, depth = 0) {
-  n._collapsed = depth >= 1;
-  (n.children || []).forEach((c) => initCollapse(c, depth + 1));
+function populateSelect(select, label, values, formatter = (x) => x) {
+  if (!select) return;
+  select.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = label;
+  select.appendChild(all);
+  for (const value of values) {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = formatter(value);
+    select.appendChild(option);
+  }
 }
 
-initCollapse(data);
-data._collapsed = false;
-
-function subtreeSize(node) {
-  if (!node.children || node.children.length === 0) return 1;
-  return node.children.reduce((s, c) => s + subtreeSize(c), 0);
-}
-
-function childSpread(count, depth = 2) {
-  if (count <= 1) return 0;
-  const base = depth === 2 ? Math.PI / 3.9 : Math.PI / 5.2;
-  const extra = Math.min(
-    Math.PI / 4.8,
-    (Math.max(0, count - 4) * Math.PI) / 38,
+function initFilters() {
+  populateSelect(
+    domainFilter,
+    "All domains",
+    unique(laidOutGraph.nodes.flatMap((node) => node.domains || [])).sort(),
   );
-  return base + extra;
-}
-
-function adaptiveRadius(base, count, index, subtreeWeight, depth) {
-  const density = Math.max(0, count - 4) * DENSE_BRANCH_BOOST;
-  const lane = index * (depth === 2 ? CHILD_STEP : GRAND_STEP) * 0.82;
-  const subtree = Math.max(0, subtreeWeight - 1) * (depth === 2 ? 12 : 7);
-  return base + density + lane + subtree;
-}
-
-function polar(r, a) {
-  return { x: r * Math.cos(a), y: r * Math.sin(a) };
-}
-
-function visible() {
-  const majors = data.children;
-  const nodes = [{ ...data, x: 0, y: 0, depth: 0, angle: 0 }];
-  const links = [];
-  const count = majors.length;
-
-  majors.forEach((m, i) => {
-    const angle = majorAngle(m.id, -Math.PI / 2 + (i * 2 * Math.PI) / count);
-    const p = polar(R1, angle);
-    nodes.push({ ...m, x: p.x, y: p.y, depth: 1, angle });
-    links.push({ source: "root", target: m.id });
-    if (m._collapsed) return;
-
-    const kids = orderedChildren(m);
-    const spread = childSpread(kids.length, 2);
-    const majorWeight = subtreeSize(m);
-    const r2Base = R2_BASE + Math.max(0, majorWeight - 8) * 9;
-
-    kids.forEach((c, j) => {
-      const local =
-        kids.length === 1 ? 0 : (j / (kids.length - 1) - 0.5) * spread;
-      const a = angle + local;
-      const r = adaptiveRadius(r2Base, kids.length, j, subtreeSize(c), 2);
-      const cp = polar(r, a);
-      nodes.push({
-        ...c,
-        x: cp.x,
-        y: cp.y,
-        depth: 2,
-        angle: a,
-        parentId: m.id,
-      });
-      links.push({ source: m.id, target: c.id });
-      if (c._collapsed || !c.children) return;
-
-      const gkids = orderedChildren(c);
-      const gSpread = childSpread(gkids.length, 3);
-      const r3Base =
-        R3_BASE +
-        Math.max(0, majorWeight - 8) * 13 +
-        Math.max(0, kids.length - 6) * 30;
-      gkids.forEach((g, k) => {
-        const glocal =
-          gkids.length === 1 ? 0 : (k / (gkids.length - 1) - 0.5) * gSpread;
-        const ga = a + glocal;
-        const gr = adaptiveRadius(r3Base, gkids.length, k, subtreeSize(g), 3);
-        const gp = polar(gr, ga);
-        nodes.push({
-          ...g,
-          x: gp.x,
-          y: gp.y,
-          depth: 3,
-          angle: ga,
-          parentId: c.id,
-        });
-        links.push({ source: c.id, target: g.id });
-      });
-    });
-  });
-
-  prepareLayout(nodes);
-  resolveOverlaps(nodes);
-  return { nodes, links };
+  populateSelect(
+    kindFilter,
+    "All kinds",
+    unique(laidOutGraph.nodes.map((node) => node.kind)).sort(),
+  );
+  populateSelect(
+    taskFilter,
+    "All task types",
+    Object.keys(semanticGraph.taskTypes).sort(),
+    (value) => semanticGraph.taskTypes[value] || value,
+  );
+  populateSelect(
+    evidenceFilter,
+    "All evidence",
+    semanticGraph.sources.map((source) => source.id).sort(),
+  );
 }
 
 function applyTransform() {
@@ -319,414 +135,614 @@ function applyTransform() {
   );
 }
 
+function nodeRadiusFor(node) {
+  if (node.id === "root") return 92;
+  const base =
+    node.kind === "mechanism"
+      ? 62
+      : node.kind === "proofPattern" || node.kind === "dataStructure"
+        ? 56
+        : node.kind === "examPattern"
+          ? 42
+          : 50;
+  return base + Math.min(26, Math.sqrt(node.priority || 0.1) * 10);
+}
+
+function nodeLayout(node) {
+  const r = nodeRadiusFor(node);
+  const priorityBoost = Math.min(42, Math.sqrt(node.priority || 0.1) * 12);
+  const hierarchyBoost =
+    node.kind === "mechanism"
+      ? 28
+      : node.kind === "proofPattern" || node.kind === "dataStructure"
+        ? 16
+        : node.kind === "examPattern"
+          ? -18
+          : 0;
+  const label = displayLabel(node);
+  const lines = wrap(label, node.id === "root" ? 12 : 13, 2);
+  const longest = lines.reduce((max, line) => Math.max(max, line.length), 0);
+  const w =
+    node.id === "root"
+      ? 210
+      : Math.max(118, Math.min(210, longest * 9 + 58 + hierarchyBoost));
+  const h =
+    node.id === "root"
+      ? 110
+      : 66 + Math.min(22, priorityBoost / 2) + Math.max(0, hierarchyBoost / 4);
+  return { r, w, h, lines, lineHeight: node.id === "root" ? 20 : 16 };
+}
+
+function wrap(text, max, maxLines = 3) {
+  const words = String(text || "").split(/\s+/);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const part = word.length > max ? word.slice(0, max - 1) + "." : word;
+    const next = `${line} ${part}`.trim();
+    if (next.length > max && line) {
+      lines.push(line);
+      line = part;
+    } else {
+      line = next;
+    }
+  }
+  if (line) lines.push(line);
+  if (lines.length <= maxLines) return lines;
+  const kept = lines.slice(0, maxLines);
+  kept[maxLines - 1] = kept[maxLines - 1].replace(/\.*$/, ".");
+  return kept;
+}
+
 function boundsForNodes(nodes) {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
   let maxY = Number.NEGATIVE_INFINITY;
-
-  for (const n of nodes) {
-    const { w, h } = nodeLayout(n);
-    minX = Math.min(minX, n.x - w / 2);
-    minY = Math.min(minY, n.y - h / 2);
-    maxX = Math.max(maxX, n.x + w / 2);
-    maxY = Math.max(maxY, n.y + h / 2);
+  for (const node of nodes) {
+    const { w, h } = nodeLayout(node);
+    minX = Math.min(minX, node.x - w / 2);
+    minY = Math.min(minY, node.y - h / 2);
+    maxX = Math.max(maxX, node.x + w / 2);
+    maxY = Math.max(maxY, node.y + h / 2);
   }
-
   return { minX, minY, maxX, maxY, width: maxX - minX, height: maxY - minY };
 }
 
-function centerView() {
+function centerView(nodes = null) {
   const rect = svg.getBoundingClientRect();
-  transform.k = 0.82;
-  const { nodes } = visible();
-  const bounds = boundsForNodes(nodes);
-  const paddingX = Math.min(170, Math.max(72, rect.width * 0.09));
-  const paddingY = Math.min(150, Math.max(82, rect.height * 0.12));
+  const bounds = boundsForNodes(nodes || defaultFitNodes());
+  const paddingX = Math.min(190, Math.max(80, rect.width * 0.1));
+  const paddingY = Math.min(160, Math.max(86, rect.height * 0.14));
   const fitX = (rect.width - paddingX * 2) / Math.max(1, bounds.width);
   const fitY = (rect.height - paddingY * 2) / Math.max(1, bounds.height);
-  transform.k = Math.max(0.32, Math.min(0.82, fitX, fitY));
+  transform.k = Math.max(0.24, Math.min(0.86, fitX, fitY));
   transform.x = rect.width / 2 - (bounds.minX + bounds.width / 2) * transform.k;
   transform.y =
     rect.height / 2 - (bounds.minY + bounds.height / 2) * transform.k;
   applyTransform();
 }
 
-function nodeLayout(n) {
-  if (n._layout) return n._layout;
-  const isMajor = n.depth === 1;
-  const baseW = isMajor ? majorW : childW;
-  const baseH = isMajor ? majorH : childH;
-  const charWidth = isMajor ? 8.5 : 7.6;
-  const maxChars = isMajor ? 19 : 21;
-  const lines = wrap(n.name, maxChars, 4);
-  const longest = lines.reduce((m, line) => Math.max(m, line.length), 0);
-  const w = Math.max(
-    baseW,
-    Math.min(isMajor ? 310 : 280, Math.ceil(longest * charWidth + 54)),
+function selectedSourceFromQuery(query) {
+  if (!query) return null;
+  const q = query.toLowerCase();
+  return semanticGraph.sources.find(
+    (source) =>
+      source.id.toLowerCase() === q ||
+      source.id.toLowerCase().includes(q) ||
+      source.title.toLowerCase().includes(q),
   );
-  const lineHeight = isMajor ? 18 : 17;
-  const badgeSpace = transform.k >= 0.55 ? 22 : 8;
-  const h = Math.max(baseH, 22 + lines.length * lineHeight + badgeSpace);
-  n._layout = { w, h, lines, lineHeight };
-  return n._layout;
 }
 
-function prepareLayout(nodes) {
-  nodes.forEach((n) => {
-    n._layout = null;
-    nodeLayout(n);
-  });
+function nodeSearchText(node) {
+  const card = node.card && codeCards[node.card] ? codeCards[node.card] : null;
+  return JSON.stringify({
+    id: node.id,
+    label: node.label,
+    kind: node.kind,
+    domains: node.domains,
+    mechanisms: node.mechanisms,
+    representations: node.representations,
+    proofPatterns: node.proofPatterns,
+    taskTypes: node.taskTypes,
+    evidence: node.evidence,
+    summary: node.summary,
+    state: node.state,
+    runtime: node.runtime,
+    invariant: node.invariant,
+    card,
+  }).toLowerCase();
 }
 
-function nodeSize(n) {
-  const layout = nodeLayout(n);
-  return [layout.w, layout.h];
+function displayLabel(node) {
+  if (node.shortName) return node.shortName;
+  if (shortLabels[node.id]) return shortLabels[node.id];
+  const label = node.label || node.id;
+  if (transform.k >= 1) return label;
+  return label
+    .replace(/\bSort\b/g, "")
+    .replace(/\balgorithm\b/gi, "")
+    .replace(/\bdynamic programming\b/gi, "DP")
+    .replace(/\bpriority queue\b/gi, "PQ")
+    .replace(/\bdirect addressing\b/gi, "Direct addr.")
+    .trim();
 }
 
-function polyPoints(w, h, cut = 18) {
-  return `${-w / 2 + cut},${-h / 2} ${w / 2},${-h / 2} ${w / 2 - cut},${h / 2} ${-w / 2},${h / 2}`;
+function filterMatch(node) {
+  const domain = domainFilter && domainFilter.value;
+  const kind = kindFilter && kindFilter.value;
+  const task = taskFilter && taskFilter.value;
+  const evidence = evidenceFilter && evidenceFilter.value;
+  if (domain && !(node.domains || []).includes(domain)) return false;
+  if (kind && node.kind !== kind) return false;
+  if (task && !(node.taskTypes || []).includes(task)) return false;
+  if (evidence && !(node.evidence || []).includes(evidence)) return false;
+  return true;
 }
 
-function wrap(s, max, maxLines = 3) {
-  const words = s.split(" ");
-  const lines = [];
-  let line = "";
-  for (const w of words) {
-    const word = w.length > max ? w.slice(0, max - 1) + "." : w;
-    if ((line + " " + word).trim().length > max && line) {
-      lines.push(line.trim());
-      line = word;
-    } else {
-      line = (line + " " + word).trim();
+function activeDomainFilter() {
+  return domainFilter && domainFilter.value ? domainFilter.value : "";
+}
+
+function activeContext() {
+  const q = searchInput.value.trim().toLowerCase();
+  const source = selectedSourceFromQuery(q) || null;
+  const directMatches = new Set();
+  const highlighted = new Set();
+  const hasFilter =
+    (domainFilter && domainFilter.value) ||
+    (kindFilter && kindFilter.value) ||
+    (taskFilter && taskFilter.value) ||
+    (evidenceFilter && evidenceFilter.value);
+
+  for (const node of laidOutGraph.nodes) {
+    const matchesSource = source && (source.concepts || []).includes(node.id);
+    const matchesText = q && nodeSearchText(node).includes(q);
+    const matchesFilter = filterMatch(node);
+    if (matchesSource || matchesText || (!q && hasFilter && matchesFilter)) {
+      directMatches.add(node.id);
+      highlighted.add(node.id);
     }
   }
-  if (line) lines.push(line);
-  const clean = lines.filter(Boolean);
-  if (clean.length <= maxLines) return clean;
-  const kept = clean.slice(0, maxLines);
-  kept[maxLines - 1] = kept[maxLines - 1].replace(/\.*$/, ".");
-  return kept;
-}
 
-function resolveOverlaps(nodes) {
-  const movable = nodes.filter((n) => n.id !== "root");
-  movable.forEach((n) => {
-    n.anchorX = n.x;
-    n.anchorY = n.y;
-  });
-
-  for (const n of movable) {
-    const { w, h } = nodeLayout(n);
-    const minDistance =
-      CORE_RADIUS + Math.max(w, h) / 2 + (n.depth === 1 ? 58 : 34);
-    const d = Math.hypot(n.x, n.y) || 1;
-    if (d < minDistance) {
-      const scale = minDistance / d;
-      n.x *= scale;
-      n.y *= scale;
-    }
+  for (const link of laidOutGraph.links) {
+    if (directMatches.has(link.source)) highlighted.add(link.target);
+    if (directMatches.has(link.target)) highlighted.add(link.source);
   }
 
-  for (let iter = 0; iter < 90; iter++) {
-    let changed = false;
-    for (let i = 0; i < movable.length; i++) {
-      for (let j = i + 1; j < movable.length; j++) {
-        const a = movable[i];
-        const b = movable[j];
-        const la = nodeLayout(a);
-        const lb = nodeLayout(b);
-        const pad = a.depth === 1 || b.depth === 1 ? 34 : 26;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const overlapX = (la.w + lb.w) / 2 + pad - Math.abs(dx);
-        const overlapY = (la.h + lb.h) / 2 + pad - Math.abs(dy);
-        if (overlapX <= 0 || overlapY <= 0) continue;
+  const hasContext = Boolean(q || hasFilter);
+  return { q, source, directMatches, highlighted, hasContext };
+}
 
-        changed = true;
-        if (overlapX < overlapY) {
-          const push = overlapX / 2 + 1;
-          const dir = dx >= 0 ? 1 : -1;
-          a.x -= push * dir;
-          b.x += push * dir;
-        } else {
-          const push = overlapY / 2 + 1;
-          const dir = dy >= 0 ? 1 : -1;
-          a.y -= push * dir;
-          b.y += push * dir;
-        }
-      }
-    }
+function shouldDim(node, context) {
+  if (!context.hasContext) return false;
+  return !context.highlighted.has(node.id);
+}
 
-    if (!changed) break;
-    for (const n of movable) {
-      const pull = n.depth === 1 ? 0.012 : 0.02;
-      n.x += (n.anchorX - n.x) * pull;
-      n.y += (n.anchorY - n.y) * pull;
-    }
+function isLocalToSelected(id) {
+  if (selectedId === "root") return false;
+  return laidOutGraph.links.some(
+    (link) =>
+      (link.source === selectedId && link.target === id) ||
+      (link.target === selectedId && link.source === id),
+  );
+}
+
+function shouldShowInSemantic(node, context) {
+  if (node.id === "root" || node.id === selectedId) return true;
+  if (isLocalToSelected(node.id)) return true;
+  if (context.highlighted.has(node.id)) return true;
+  if (context.hasContext) return false;
+  if (transform.k < 0.46) {
+    return (
+      node.anchor ||
+      (enrichedConceptIds.has(node.id) &&
+        ["mechanism", "proofPattern", "dataStructure"].includes(node.kind)) ||
+      (node.priority || 0) >= 1.4
+    );
   }
-}
-
-function classFor(n) {
-  if (n.depth === 1) return "major";
-  if (n.type === "proof") return "proof";
-  if (n.type === "cnode") return "cnode";
-  if (n.type === "dsnode") return "dsnode";
-  if (n.type === "recnode") return "recnode";
-  if (n.type === "graphnode") return "graphnode";
-  if (n.type === "examnode") return "examnode";
-  return "minor";
-}
-
-function shouldShowCrossLink(a, b) {
-  const touchesSelected =
-    selectedId !== "root" && (a === selectedId || b === selectedId);
-  if (touchesSelected) return true;
-  if (linkMode === "all") return true;
-  if (linkMode === "selected") return touchesSelected;
+  if (enrichedConceptIds.has(node.id)) return true;
+  if (
+    transform.k >= 1.05 &&
+    (node.card || (semanticDegree.get(node.id) || 0) >= 2)
+  ) {
+    return true;
+  }
+  if ((node.priority || 0) >= 0.8) return true;
+  if ((semanticDegree.get(node.id) || 0) >= 4) return true;
   return false;
 }
 
-function isSelectedCrossLink(a, b) {
-  return selectedId !== "root" && (a === selectedId || b === selectedId);
-}
-
-function cycleLinkMode() {
-  linkMode =
-    linkMode === "all" ? "selected" : linkMode === "selected" ? "off" : "all";
-  updateLinkModeButton();
-  render();
-}
-
-function updateLinkModeButton() {
-  if (!linkModeToggle) return;
-  const labels = {
-    off: "Links off",
-    selected: "Links for selected",
-    all: "All links",
+function defaultFitNodes() {
+  if (layoutMode === "syllabus") {
+    return laidOutGraph.nodes.filter(
+      (node) => node.id === "root" || node.parent,
+    );
+  }
+  const context = {
+    directMatches: new Set(),
+    highlighted: new Set(),
+    hasContext: false,
   };
-  linkModeToggle.textContent = labels[linkMode];
+  return laidOutGraph.nodes.filter((node) =>
+    shouldShowInSemantic(node, context),
+  );
 }
 
-function shouldShowCrossLabel(a, b) {
-  if (isSelectedCrossLink(a, b)) return true;
-  return linkMode === "all" && transform.k >= 1.1;
+function isPrimaryRelation(link) {
+  const structural = [
+    "usesMechanism",
+    "prerequisite",
+    "sameRepresentation",
+    "sameStatePattern",
+    "sameProofPattern",
+  ].includes(link.type);
+  return structural && (link.weight || 0) >= 0.68;
+}
+
+function relationClass(link) {
+  const evidence = (link.evidence || []).some((id) =>
+    String(id).startsWith("FS"),
+  );
+  return `relation relation-${link.type} ${evidence ? "relationEvidence" : ""} ${
+    isSelectedRelation(link) ? "selectedRelation" : ""
+  }`;
+}
+
+function shouldShowRelation(link, context) {
+  if (linkMode === "off") return isSelectedRelation(link);
+  if (isSelectedRelation(link)) return true;
+  if (linkMode === "primary") {
+    return (
+      isPrimaryRelation(link) ||
+      context.directMatches.has(link.source) ||
+      context.directMatches.has(link.target)
+    );
+  }
+  if (linkMode === "selected") {
+    return (
+      context.directMatches.has(link.source) ||
+      context.directMatches.has(link.target)
+    );
+  }
+  return true;
+}
+
+function isSelectedRelation(link) {
+  return (
+    selectedId !== "root" &&
+    (link.source === selectedId || link.target === selectedId)
+  );
+}
+
+function nodeClass(node, context) {
+  const classes = ["node", "semanticNode", `kind-${node.kind}`];
+  for (const domain of node.domains || []) classes.push(`domain-${domain}`);
+  if (node.id === selectedId) classes.push("selected");
+  if (node.card && codeCards[node.card]) classes.push("hasCode");
+  if (context.directMatches.has(node.id)) classes.push("match");
+  if (shouldDim(node, context)) classes.push("dimmed");
+  if (node.generated) classes.push("generated");
+  if (node.anchor) classes.push("anchored");
+  return classes.join(" ");
+}
+
+function polyPoints(w, h, cut = 16) {
+  return `${-w / 2 + cut},${-h / 2} ${w / 2},${-h / 2} ${w / 2 - cut},${
+    h / 2
+  } ${-w / 2},${h / 2}`;
 }
 
 function render() {
-  const q = searchInput.value.trim().toLowerCase();
-  const { nodes, links } = visible();
-  const visibleById = new Map(nodes.map((n) => [n.id, n]));
-
+  const context = activeContext();
   viewport.innerHTML = "";
-  const bg = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  const linkG = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  const crossG = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  const nodeG = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  const crossLabelG = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "g",
-  );
-  viewport.append(bg, linkG, crossG, nodeG, crossLabelG);
 
-  for (const l of links) {
-    const s = visibleById.get(l.source);
-    const t = visibleById.get(l.target);
-    if (!s || !t) continue;
-    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    p.setAttribute("class", t.depth === 1 ? "ray red" : "ray");
-    p.setAttribute("d", `M${s.x},${s.y} L${t.x},${t.y}`);
-    linkG.appendChild(p);
+  const clusterG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  const linkG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  const labelG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  const nodeG = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  viewport.append(clusterG, linkG, labelG, nodeG);
+
+  const visibleNodes =
+    layoutMode === "syllabus"
+      ? laidOutGraph.nodes.filter((node) => node.id === "root" || node.parent)
+      : laidOutGraph.nodes.filter((node) =>
+          shouldShowInSemantic(node, context),
+        );
+  const visibleIds = new Set(visibleNodes.map((node) => node.id));
+
+  if (layoutMode === "semantic") {
+    renderClusters(clusterG, visibleNodes);
   }
 
-  for (const [a, b, label] of crossLinks) {
-    if (!shouldShowCrossLink(a, b)) continue;
-    const s = visibleById.get(a);
-    const t = visibleById.get(b);
-    if (!s || !t) continue;
-    const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-    const mx = (s.x + t.x) / 2;
-    const my = (s.y + t.y) / 2;
-    p.setAttribute(
-      "class",
-      isSelectedCrossLink(a, b) ? "cross selectedCross" : "cross",
-    );
-    p.setAttribute(
+  for (const link of laidOutGraph.links) {
+    if (!visibleIds.has(link.source) || !visibleIds.has(link.target)) continue;
+    if (!shouldShowRelation(link, context)) continue;
+    const source = byId.get(link.source);
+    const target = byId.get(link.target);
+    if (!source || !target) continue;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const mx = (source.x + target.x) / 2;
+    const my = (source.y + target.y) / 2;
+    const bend = Math.min(50, Math.hypot(dx, dy) * 0.12);
+    const cx = mx - (dy / (Math.hypot(dx, dy) || 1)) * bend;
+    const cy = my + (dx / (Math.hypot(dx, dy) || 1)) * bend;
+    path.setAttribute(
       "d",
-      `M${s.x},${s.y} Q${mx * 1.07},${my * 1.07} ${t.x},${t.y}`,
+      `M ${source.x} ${source.y} Q ${cx} ${cy} ${target.x} ${target.y}`,
     );
-    crossG.appendChild(p);
+    path.setAttribute("class", relationClass(link));
+    path.setAttribute("stroke-width", 1.1 + Math.min(4, link.weight * 2.2));
+    if (
+      isSelectedRelation(link) ||
+      (context.directMatches.has(link.source) &&
+        context.directMatches.has(link.target))
+    ) {
+      path.classList.add("activeContext");
+    }
+    linkG.appendChild(path);
 
-    if (shouldShowCrossLabel(a, b)) {
-      const labelText = label.toUpperCase();
-      const d = Math.hypot(mx, my) || 1;
-      const lx = mx * 1.03 + (mx / d) * 28;
-      const ly = my * 1.03 + (my / d) * 28;
-      const labelW = Math.max(48, labelText.length * 7.4 + 18);
-      const labelH = 18;
-      const labelGroup = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "g",
-      );
-      labelGroup.setAttribute(
-        "class",
-        isSelectedCrossLink(a, b)
-          ? "crossLabelGroup selectedCrossLabel"
-          : "crossLabelGroup",
-      );
-
-      const box = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "rect",
-      );
-      box.setAttribute("class", "crossLabelBox");
-      box.setAttribute("x", lx - labelW / 2);
-      box.setAttribute("y", ly - labelH / 2);
-      box.setAttribute("width", labelW);
-      box.setAttribute("height", labelH);
-      labelGroup.appendChild(box);
-
-      const text = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "text",
-      );
-      text.setAttribute("class", "crossLabel");
-      text.setAttribute("x", lx);
-      text.setAttribute("y", ly);
-      text.textContent = labelText;
-      labelGroup.appendChild(text);
-      crossLabelG.appendChild(labelGroup);
+    if (
+      (isSelectedRelation(link) || transform.k >= 0.95) &&
+      link.label &&
+      linkMode !== "off"
+    ) {
+      if (transform.k >= 0.82) {
+        const text = document.createElementNS(
+          "http://www.w3.org/2000/svg",
+          "text",
+        );
+        text.setAttribute("class", "relationLabel");
+        text.setAttribute("x", cx);
+        text.setAttribute("y", cy);
+        text.textContent = link.label;
+        labelG.appendChild(text);
+      }
     }
   }
 
-  const core = document.createElementNS("http://www.w3.org/2000/svg", "g");
-  core.setAttribute("class", "node selected");
-  core.addEventListener("click", (e) => {
-    e.stopPropagation();
-    selectedId = "root";
-    showDetails(data);
-    render();
-  });
-  const circle = document.createElementNS(
-    "http://www.w3.org/2000/svg",
-    "circle",
-  );
-  circle.setAttribute("class", "core-ring");
-  circle.setAttribute("r", 108);
-  core.appendChild(circle);
-  ["INF II", "EXAM", "MACHINE"].forEach((t, i) => {
-    const tx = document.createElementNS("http://www.w3.org/2000/svg", "text");
-    tx.setAttribute("class", "core-text");
-    tx.setAttribute("y", -28 + i * 34);
-    tx.textContent = t;
-    core.appendChild(tx);
-  });
-  nodeG.appendChild(core);
-
-  for (const n of nodes.filter((n) => n.id !== "root")) {
-    const orig = byId.get(n.id) || n;
-    const card = codeCards[n.id];
-    const hay = JSON.stringify({
-      node: orig,
-      code: card || null,
-    }).toLowerCase();
-    const isMatch = q && hay.includes(q);
-    const layout = nodeLayout(n);
-    const [w, h] = [layout.w, layout.h];
-
-    const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-    g.setAttribute(
-      "class",
-      `node ${classFor(n)} ${n.id === selectedId ? "selected" : ""} ${isMatch ? "match" : ""} ${card ? "hasCode" : ""}`,
-    );
-    g.setAttribute("transform", `translate(${n.x},${n.y})`);
-    g.style.cursor = "pointer";
-    g.addEventListener("click", (e) => {
-      e.stopPropagation();
-      selectedId = n.id;
-      if (linkMode === "off") {
-        linkMode = "selected";
-        updateLinkModeButton();
-      }
-      showDetails(orig);
+  for (const node of visibleNodes) {
+    const layout = nodeLayout(node);
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute("class", nodeClass(node, context));
+    group.setAttribute("transform", `translate(${node.x},${node.y})`);
+    group.style.cursor = "pointer";
+    group.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedId = node.id;
+      showDetails(node);
       render();
     });
-    g.addEventListener("dblclick", (e) => {
-      e.stopPropagation();
-      if (orig.children) {
-        orig._collapsed = !orig._collapsed;
-        render();
-      }
+    group.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      selectedId = node.id;
+      centerOnNode(node.id);
+      if (node.card && codeCards[node.card]) openCodePanel(node.id);
     });
 
     const shape = document.createElementNS(
       "http://www.w3.org/2000/svg",
       "polygon",
     );
-    shape.setAttribute("points", polyPoints(w, h, n.depth === 1 ? 28 : 18));
-    g.appendChild(shape);
+    shape.setAttribute(
+      "points",
+      polyPoints(layout.w, layout.h, node.id === "root" ? 30 : 17),
+    );
+    group.appendChild(shape);
 
-    layout.lines.forEach((line, i) => {
-      const text = document.createElementNS(
+    const labelLines = wrap(
+      displayLabel(node),
+      node.id === "root" ? 12 : 13,
+      2,
+    );
+    labelLines.forEach((line, index) => {
+      const title = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "text",
       );
-      text.setAttribute("class", "title");
-      text.setAttribute(
+      title.setAttribute("class", "title");
+      title.setAttribute(
         "y",
-        -8 + (i - (layout.lines.length - 1) / 2) * layout.lineHeight,
+        -6 + (index - (labelLines.length - 1) / 2) * layout.lineHeight,
       );
-      text.textContent = line;
-      g.appendChild(text);
+      title.textContent = line;
+      group.appendChild(title);
     });
 
-    if (transform.k >= 0.55) {
+    if (transform.k >= 0.78) {
       const small = document.createElementNS(
         "http://www.w3.org/2000/svg",
         "text",
       );
       small.setAttribute("class", "small");
-      small.setAttribute("y", h / 2 - 10);
-      small.textContent = (
-        (card ? "CODE - " : "") + (n.badge || n.type || "")
-      ).toUpperCase();
-      g.appendChild(small);
+      small.setAttribute("y", layout.h / 2 - 10);
+      const tag =
+        node.card && codeCards[node.card] ? "CODE" : node.kind || "concept";
+      small.textContent = tag.toUpperCase();
+      group.appendChild(small);
     }
 
-    if (orig.children) {
-      const plus = document.createElementNS(
-        "http://www.w3.org/2000/svg",
-        "text",
-      );
-      plus.setAttribute("class", "small");
-      plus.setAttribute("x", w / 2 - 22);
-      plus.setAttribute("y", -h / 2 + 18);
-      plus.textContent = orig._collapsed ? "+" : "-";
-      g.appendChild(plus);
-    }
-
-    nodeG.appendChild(g);
+    nodeG.appendChild(group);
   }
 
   applyTransform();
+  updateModeButton();
+  updateLinkModeButton();
 }
 
-function list(title, arr) {
-  return arr && arr.length
-    ? `<div class="section-title">${title}</div><ul>${arr.map((x) => `<li>${x}</li>`).join("")}</ul>`
-    : "";
+function renderClusters(clusterG, visibleNodes) {
+  const visibleDomains = new Set(
+    visibleNodes.flatMap((node) => node.domains || []),
+  );
+  const selectedDomain = activeDomainFilter();
+  for (const cluster of semanticClusters || []) {
+    const clusterDomains = cluster.domains || [cluster.id];
+    const hasVisibleNode = clusterDomains.some((domain) =>
+      visibleDomains.has(domain),
+    );
+    if (!hasVisibleNode && selectedDomain) continue;
+
+    const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    group.setAttribute(
+      "class",
+      `clusterGroup ${
+        selectedDomain && !clusterDomains.includes(selectedDomain)
+          ? "clusterMuted"
+          : ""
+      }`,
+    );
+    group.setAttribute(
+      "transform",
+      `translate(${cluster.x},${cluster.y}) rotate(${cluster.rotate || 0})`,
+    );
+
+    const field = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "polygon",
+    );
+    field.setAttribute("class", "clusterField");
+    field.setAttribute("points", clusterPoints(cluster.rx, cluster.ry));
+    field.setAttribute("data-cluster", cluster.id);
+    group.appendChild(field);
+
+    const rail = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "polyline",
+    );
+    rail.setAttribute("class", "clusterRail");
+    rail.setAttribute(
+      "points",
+      `${-cluster.rx + 38},${-cluster.ry + 18} ${cluster.rx - 34},${-cluster.ry + 18}`,
+    );
+    group.appendChild(rail);
+
+    const label = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "text",
+    );
+    label.setAttribute("class", "clusterLabel");
+    label.setAttribute("x", -cluster.rx + 32);
+    label.setAttribute("y", -cluster.ry + 34);
+    label.textContent = cluster.label;
+    group.appendChild(label);
+    clusterG.appendChild(group);
+  }
 }
 
-function showDetails(n) {
-  const code = codeCards[n.id];
-  details.innerHTML = `<h2>${n.name}</h2><p>${n.why || ""}</p><div class="meta"><span class="pill">${n.type || "topic"}</span><span class="pill">${n.badge || "node"}</span>${n.children ? `<span class="pill">${n.children.length} parts</span>` : ""}${code ? `<span class="pill">C CODE</span>` : ""}</div>${list("Builds on", n.builds)}${list("Used in", n.used)}${list("Exam signal", n.exam)}${list("Subnodes", n.children && n.children.map((c) => c.name))}<div class="section-title">Action</div><ul><li>Click a node to inspect it here.</li><li>Double-click the corresponding node to expand or collapse.</li><li>Use the link button to show selected transfer links or all cross-links.</li><li>Use C Lab below to open C / pseudocode.</li></ul>${code ? `<div class="section-title">C Lab</div><button onclick="openCodePanel('${n.id}')">Open C code</button>` : ""}`;
+function clusterPoints(rx, ry) {
+  const cutX = Math.min(86, rx * 0.22);
+  const cutY = Math.min(58, ry * 0.22);
+  return [
+    `${-rx + cutX},${-ry}`,
+    `${rx},${-ry}`,
+    `${rx - cutX},${ry}`,
+    `${-rx},${ry}`,
+    `${-rx + cutX * 0.35},${-ry + cutY}`,
+  ].join(" ");
 }
 
-function escapeHTML(s) {
-  return String(s)
+function htmlList(title, items, mapper = (item) => item) {
+  const clean = unique(items || []);
+  if (!clean.length) return "";
+  return `<div class="section-title">${title}</div><ul>${clean
+    .map((item) => `<li>${mapper(item)}</li>`)
+    .join("")}</ul>`;
+}
+
+function pillList(items, mapper = (item) => item) {
+  return unique(items || [])
+    .map((item) => `<span class="pill">${mapper(item)}</span>`)
+    .join("");
+}
+
+function relationGroupsFor(id) {
+  const groups = new Map();
+  for (const link of laidOutGraph.links) {
+    if (link.source !== id && link.target !== id) continue;
+    const otherId = link.source === id ? link.target : link.source;
+    const other = byId.get(otherId);
+    if (!other) continue;
+    if (!groups.has(link.type)) groups.set(link.type, []);
+    groups.get(link.type).push({ other, link });
+  }
+  return [...groups.entries()];
+}
+
+function evidenceItems(node) {
+  return unique(node.evidence || [])
+    .map((id) => sourceById.get(id))
+    .filter(Boolean);
+}
+
+function showDetails(node) {
+  const cardId = node.card || node.id;
+  const hasCode = Boolean(codeCards[cardId]);
+  const evidence = evidenceItems(node);
+  const nodeDrills = drillsByConcept.get(node.id) || [];
+  const relationsHtml = relationGroupsFor(node.id)
+    .map(([type, items]) => {
+      const links = items
+        .slice(0, 12)
+        .map(
+          ({ other, link }) =>
+            `<li><button class="text-link" data-jump="${other.id}">${other.label}</button> <span class="muted">(${link.label || type}, ${Number(link.weight).toFixed(2)})</span></li>`,
+        )
+        .join("");
+      return `<div class="section-title">${type}</div><ul>${links}</ul>`;
+    })
+    .join("");
+
+  details.innerHTML = `
+    <h2>${escapeHTML(node.label || node.id)}</h2>
+    <p>${escapeHTML(node.summary || "Semantic concept awaiting enrichment.")}</p>
+    <div class="meta">
+      ${pillList([node.kind || "concept"])}
+      ${pillList(node.domains)}
+      ${hasCode ? '<span class="pill">C / PSEUDOCODE</span>' : ""}
+      <span class="pill">priority ${Number(node.priority || 0).toFixed(1)}</span>
+    </div>
+    ${htmlList("State", node.state)}
+    ${htmlList("Mechanisms", node.mechanisms)}
+    ${htmlList("Representations", node.representations)}
+    ${htmlList("Proof patterns", node.proofPatterns)}
+    ${node.invariant ? `<div class="section-title">Invariant</div><p>${escapeHTML(node.invariant)}</p>` : ""}
+    ${node.runtime ? `<div class="section-title">Runtime</div><p>${escapeHTML(node.runtime)}</p>` : ""}
+    ${htmlList("Edge cases", node.edgeCases)}
+    ${htmlList("Task types", node.taskTypes, (item) => semanticGraph.taskTypes[item] || item)}
+    ${
+      evidence.length
+        ? `<div class="section-title">Evidence</div><ul>${evidence
+            .map(
+              (source) =>
+                `<li><button class="text-link" data-source="${source.id}">${source.id}</button> ${escapeHTML(source.title)}</li>`,
+            )
+            .join("")}</ul>`
+        : ""
+    }
+    ${
+      nodeDrills.length
+        ? `<div class="section-title">Drills</div><ul>${nodeDrills
+            .map((drill) => `<li>${escapeHTML(drill.prompt)}</li>`)
+            .join("")}</ul>`
+        : ""
+    }
+    ${relationsHtml}
+    ${
+      hasCode
+        ? `<div class="section-title">C Lab</div><button onclick="openCodePanel('${node.id}')">Open C / pseudocode</button>`
+        : ""
+    }
+  `;
+}
+
+function escapeHTML(value) {
+  return String(value || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function ensureCodeModal() {
@@ -736,15 +752,17 @@ function ensureCodeModal() {
   el.id = "codeModalBackdrop";
   el.className = "code-modal-backdrop";
   el.innerHTML = `<div class="code-modal"><div class="modal-head"><div><h2 id="codeTitle"></h2><div class="code-sub" id="codeKind"></div></div><button class="close-code" onclick="closeCodePanel()">Close</button></div><div class="code-note" id="codeNote"></div><div class="code-actions" id="codeActions"></div><pre><code id="codeBody"></code></pre></div>`;
-  el.addEventListener("click", (e) => {
-    if (e.target === el) closeCodePanel();
+  el.addEventListener("click", (event) => {
+    if (event.target === el) closeCodePanel();
   });
   document.body.appendChild(el);
   return el;
 }
 
 function openCodePanel(id) {
-  const card = codeCards[id];
+  const node = byId.get(id);
+  const cardId = (node && node.card) || id;
+  const card = codeCards[cardId];
   if (!card) return;
   const el = ensureCodeModal();
   document.getElementById("codeTitle").textContent = card.title;
@@ -753,15 +771,15 @@ function openCodePanel(id) {
   document.getElementById("codeBody").innerHTML = escapeHTML(card.code);
   const actions = document.getElementById("codeActions");
   actions.innerHTML = "";
-  (card.deps || []).forEach((dep) => {
+  for (const dep of card.deps || []) {
     const target = byId.get(dep);
-    if (!target) return;
-    const b = document.createElement("button");
-    b.className = "code-link-btn";
-    b.textContent = "Jump to " + target.name;
-    b.onclick = () => jumpToNode(dep, true);
-    actions.appendChild(b);
-  });
+    if (!target) continue;
+    const button = document.createElement("button");
+    button.className = "code-link-btn";
+    button.textContent = `Jump to ${target.label}`;
+    button.onclick = () => jumpToNode(dep, true);
+    actions.appendChild(button);
+  }
   el.classList.add("open");
 }
 
@@ -770,100 +788,136 @@ function closeCodePanel() {
   if (el) el.classList.remove("open");
 }
 
-function expandPath(node, id) {
-  if (node.id === id) {
-    node._collapsed = false;
-    return true;
-  }
-  for (const c of node.children || []) {
-    if (expandPath(c, id)) {
-      node._collapsed = false;
-      return true;
-    }
-  }
-  return false;
-}
-
 function centerOnNode(id) {
-  const item = visible().nodes.find((n) => n.id === id);
-  if (!item) return;
+  const node = byId.get(id);
+  if (!node) return;
   const rect = svg.getBoundingClientRect();
-  transform.x = rect.width / 2 - item.x * transform.k;
-  transform.y = rect.height / 2 - item.y * transform.k;
+  transform.x = rect.width / 2 - node.x * transform.k;
+  transform.y = rect.height / 2 - node.y * transform.k;
   applyTransform();
 }
 
 function jumpToNode(id, openCode = false) {
-  const target = byId.get(id);
-  if (!target) return;
-  expandPath(data, id);
+  const node = byId.get(id);
+  if (!node) return;
   selectedId = id;
-  showDetails(target);
+  showDetails(node);
   render();
   centerOnNode(id);
-  if (openCode && codeCards[id]) openCodePanel(id);
+  if (openCode) openCodePanel(id);
 }
 
-function expandAll() {
-  allNodes().forEach((n) => {
-    n._collapsed = false;
-  });
+function updateLinkModeButton() {
+  if (!linkModeToggle) return;
+  const labels = {
+    primary: "Primary lines",
+    off: "Links off",
+    selected: "Local lines",
+    all: "All links",
+  };
+  linkModeToggle.textContent = labels[linkMode];
+}
+
+function cycleLinkMode() {
+  linkMode =
+    linkMode === "primary"
+      ? "selected"
+      : linkMode === "selected"
+        ? "all"
+        : linkMode === "all"
+          ? "off"
+          : "primary";
   render();
 }
 
-function coreView() {
-  allNodes().forEach((n) => {
-    n._collapsed = true;
-  });
-  data._collapsed = false;
+function updateModeButton() {
+  if (!modeToggle) return;
+  modeToggle.textContent =
+    layoutMode === "semantic" ? "Semantic mode" : "Syllabus mode";
+}
+
+function toggleMode() {
+  layoutMode = layoutMode === "semantic" ? "syllabus" : "semantic";
+  render();
+}
+
+function resetFilters() {
+  if (domainFilter) domainFilter.value = "";
+  if (kindFilter) kindFilter.value = "";
+  if (taskFilter) taskFilter.value = "";
+  if (evidenceFilter) evidenceFilter.value = "";
+  searchInput.value = "";
   selectedId = "root";
-  showDetails(data);
-  centerView();
+  showDetails(byId.get("root"));
   render();
+  centerView();
 }
 
-document.getElementById("expandAll").onclick = expandAll;
-document.getElementById("collapseAll").onclick = coreView;
+details.addEventListener("click", (event) => {
+  if (!(event.target instanceof Element)) return;
+  const jump = event.target.closest("[data-jump]");
+  if (jump) {
+    jumpToNode(jump.getAttribute("data-jump"));
+    return;
+  }
+  const source = event.target.closest("[data-source]");
+  if (source) {
+    searchInput.value = source.getAttribute("data-source");
+    render();
+    return;
+  }
+});
+
+if (linkModeToggle) linkModeToggle.onclick = cycleLinkMode;
+if (modeToggle) modeToggle.onclick = toggleMode;
+document.getElementById("expandAll").onclick = resetFilters;
+document.getElementById("collapseAll").onclick = () => {
+  layoutMode = "semantic";
+  linkMode = "primary";
+  selectedId = "root";
+  render();
+  centerView();
+};
 document.getElementById("resetView").onclick = () => {
   centerView();
   render();
 };
-if (linkModeToggle) linkModeToggle.onclick = cycleLinkMode;
 
-searchInput.addEventListener("input", () => {
-  if (searchInput.value.trim()) expandAll();
-  else render();
-});
+for (const select of [domainFilter, kindFilter, taskFilter, evidenceFilter]) {
+  if (select) select.addEventListener("change", render);
+}
+
+searchInput.addEventListener("input", render);
 
 svg.addEventListener(
   "wheel",
-  (e) => {
-    e.preventDefault();
-    const scale = e.deltaY < 0 ? 1.08 : 0.92;
+  (event) => {
+    event.preventDefault();
+    const scale = event.deltaY < 0 ? 1.08 : 0.92;
     const rect = svg.getBoundingClientRect();
-    const mx = e.clientX - rect.left;
-    const my = e.clientY - rect.top;
+    const mx = event.clientX - rect.left;
+    const my = event.clientY - rect.top;
     const old = transform.k;
-    const nk = Math.max(0.18, Math.min(2.5, old * scale));
-    transform.x = mx - (mx - transform.x) * (nk / old);
-    transform.y = my - (my - transform.y) * (nk / old);
-    transform.k = nk;
+    const next = Math.max(0.18, Math.min(2.4, old * scale));
+    transform.x = mx - (mx - transform.x) * (next / old);
+    transform.y = my - (my - transform.y) * (next / old);
+    transform.k = next;
     render();
   },
   { passive: false },
 );
 
-svg.addEventListener("mousedown", (e) => {
+svg.addEventListener("mousedown", (event) => {
   dragging = true;
-  last = { x: e.clientX, y: e.clientY };
+  last = { x: event.clientX, y: event.clientY };
   svg.classList.add("dragging");
 });
 
-window.addEventListener("mousemove", (e) => {
+window.addEventListener("mousemove", (event) => {
   if (!dragging) return;
-  transform.x += e.clientX - last.x;
-  transform.y += e.clientY - last.y;
-  last = { x: e.clientX, y: e.clientY };
+  transform.x += event.clientX - last.x;
+  transform.y += event.clientY - last.y;
+  last = { x: event.clientX, y: event.clientY };
   applyTransform();
 });
 
@@ -874,7 +928,7 @@ window.addEventListener("mouseup", () => {
 
 svg.addEventListener("click", () => {
   selectedId = "root";
-  showDetails(data);
+  showDetails(byId.get("root"));
   render();
 });
 
@@ -883,6 +937,9 @@ window.addEventListener("resize", () => {
   render();
 });
 
+initFilters();
 updateLinkModeButton();
+updateModeButton();
+showDetails(byId.get("root"));
 centerView();
 render();

@@ -3,49 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>INF II Constructivist C-Learning Machine</title>
+    <title>INF II Semantic Learning Graph</title>
     <link rel="stylesheet" href="css/style.css" />
   </head>
   <body>
     <div class="app">
       <header class="topbar">
-        <h1>INF II C-Learning Machine</h1>
+        <h1>INF II Semantic Exam Machine</h1>
         <div class="subtitle">
-          Constructivist radial syllabus map with code popups, dependency jumps,
-          exam mechanisms, weighted graphs, DP, C, pointers, ADTs and proof
-          logic.
+          Evidence-weighted semantic concept graph for mechanisms,
+          representations, C / pseudocode, invariants, runtime and exam gravity.
         </div>
         <div class="controls">
           <input
             id="search"
             type="search"
-            placeholder="search: swap, heapify, AVL, Bellman..."
-          /><button id="linkModeToggle">Links off</button
-          ><button id="expandAll">Expand all</button
+            placeholder="search: swap, FS24-Q6, helper table..."
+          /><select id="domainFilter" aria-label="Domain filter"></select
+          ><select id="kindFilter" aria-label="Kind filter"></select
+          ><select id="taskFilter" aria-label="Task type filter"></select
+          ><select id="evidenceFilter" aria-label="Evidence filter"></select
+          ><button id="modeToggle">Semantic mode</button
+          ><button id="linkModeToggle">Primary lines</button
+          ><button id="expandAll">Clear filters</button
           ><button id="collapseAll">Core view</button
           ><button id="resetView">Reset</button>
         </div>
       </header>
       <main id="stageWrap">
         <div class="gridbg"></div>
-        <svg id="svg" aria-label="INF II radial mind map">
+        <svg id="svg" aria-label="INF II semantic learning graph">
           <g id="viewport"></g>
         </svg>
         <div class="hint">
-          Drag = pan | wheel = zoom | click = inspect/code | double click =
-          expand/collapse
+          Drag = pan | wheel = zoom | click = inspect | double click = center /
+          code
         </div>
       </main>
       <aside>
         <div class="side-card" id="details">
           <h2>INF II Exam Machine</h2>
           <p>
-            The core is in the middle. Every branch is a functional part of the
-            exam machine: representation, mechanism, C/pseudocode, invariant and
-            runtime.
+            The map is a semantic knowledge graph. Exams and exercises act as
+            evidence that pulls mechanisms, representations and algorithms
+            together.
           </p>
           <div class="meta">
-            <span class="pill">core</span><span class="pill">radial</span
+            <span class="pill">core</span><span class="pill">semantic</span
             ><span class="pill">C code</span>
           </div>
           <div class="section-title">Legend</div>
@@ -74,8 +78,15 @@
       </aside>
     </div>
     <script src="js/data.js"></script>
-    <script src="js/crossLinks.js"></script>
     <script src="js/codeCards.js"></script>
+    <script src="js/crossLinks.js"></script>
+    <script src="js/concepts.js"></script>
+    <script src="js/relations.js"></script>
+    <script src="js/sources.js"></script>
+    <script src="js/drills.js"></script>
+    <script src="js/clusters.js"></script>
+    <script src="js/graphBuilder.js"></script>
+    <script src="js/semanticLayout.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

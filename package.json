@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "format": "prettier --write js/data.js js/codeCards.js js/crossLinks.js js/app.js css/style.css index.html README.md",
-    "format:check": "prettier --check js/data.js js/codeCards.js js/crossLinks.js js/app.js css/style.css index.html README.md"
+    "format": "prettier --write js/*.js css/style.css index.html README.md scripts/*.mjs",
+    "format:check": "prettier --check js/*.js css/style.css index.html README.md scripts/*.mjs",
+    "validate": "node scripts/validateGraph.mjs",
+    "coverage": "node scripts/buildCoverage.mjs"
   },
   "devDependencies": {
     "prettier": "^3.5.3"
