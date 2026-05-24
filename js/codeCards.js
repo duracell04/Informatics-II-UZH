@@ -480,6 +480,45 @@ Recurrence:
 Trace trap:
   the four recursive calls are not interchangeable because the orientation changes.`,
   },
+  hilbertDrawingRecursion: {
+    title: "Hilbert drawing recursion",
+    kind: "recursion trace",
+    note: "Drawing-call analysis is separate from the Ex01 curve-length recurrence.",
+    deps: ["recursion", "recurrences"],
+    code: `Hilbert(level, direction):
+  if level == 0: return
+
+  turn / orient
+  Hilbert(level - 1, rotated direction)
+  draw connector
+  Hilbert(level - 1, direction)
+  draw connector
+  Hilbert(level - 1, direction)
+  draw connector
+  Hilbert(level - 1, opposite rotation)
+
+Drawing-call recurrence:
+  T(n) = 4T(n-1) + O(1)
+
+Do not use this recurrence for the curve-length task.`,
+  },
+  hilbertLengthRecurrence: {
+    title: "Hilbert length recurrence",
+    kind: "recurrence analysis",
+    note: "Ex01 asks for the curve length, not the number of recursive drawing calls.",
+    deps: ["recurrences", "substitution"],
+    code: `Length recurrence:
+  H(i) = 2 * H(i-1) + 3 * l / 2^i
+  H(0) = 0
+
+State meaning:
+  H(i) is the total curve length at order i
+  l / 2^i is the segment scale at that order
+
+Exam trap:
+  T(n)=4T(n-1)+O(1) describes recursive drawing work,
+  not this length recurrence.`,
+  },
   binaryPrint: {
     title: "Recursive binary print order",
     kind: "C recursion",

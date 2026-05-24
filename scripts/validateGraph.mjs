@@ -17,6 +17,21 @@ const conceptIds = new Set(graph.nodes.map((node) => node.id));
 const sourceIds = new Set(sources.map((source) => source.id));
 const validTaskTypes = new Set(Object.keys(taskTypeLabels));
 const validRelationTypes = new Set(relationTypes);
+const graphNodeById = new Map(graph.nodes.map((node) => [node.id, node]));
+const drillsByConcept = new Map();
+const drillsBySource = new Map();
+const highPriorityDrillThreshold = 3.5;
+
+for (const drill of drills) {
+  if (!drillsByConcept.has(drill.concept)) {
+    drillsByConcept.set(drill.concept, []);
+  }
+  drillsByConcept.get(drill.concept).push(drill);
+  if (drill.source) {
+    if (!drillsBySource.has(drill.source)) drillsBySource.set(drill.source, []);
+    drillsBySource.get(drill.source).push(drill);
+  }
+}
 
 function fail(message) {
   errors.push(message);
@@ -39,8 +54,42 @@ checkDuplicateIds(sources, "source");
 checkDuplicateIds(drills, "drill");
 
 for (const node of graph.nodes) {
+  if (node.generated) {
+    fail(`Generated placeholder concept remains in graph: ${node.id}`);
+  }
+}
+
+for (const cardId of Object.keys(codeCards)) {
+  if (!conceptIds.has(cardId)) {
+    fail(`Code card '${cardId}' has no visible concept.`);
+  }
+}
+
+for (const node of graph.nodes) {
   if (node.card && !codeCards[node.card]) {
     fail(`Concept '${node.id}' references missing code card '${node.card}'.`);
+  }
+  if (!node.summary) {
+    warn(`Concept '${node.id}' is missing a summary.`);
+  }
+  if (
+    node.id !== "root" &&
+    !node.generated &&
+    (node.priority || 0) >= 1 &&
+    (!node.evidence || node.evidence.length === 0)
+  ) {
+    warn(`Concept '${node.id}' has no source evidence.`);
+  }
+  if (
+    node.id !== "root" &&
+    (node.priority || 0) >= highPriorityDrillThreshold &&
+    !drillsByConcept.has(node.id)
+  ) {
+    fail(
+      `High-priority concept '${node.id}' has no drill (priority ${node.priority.toFixed(
+        2,
+      )}).`,
+    );
   }
   for (const task of node.taskTypes || []) {
     if (!validTaskTypes.has(task)) {
@@ -68,6 +117,12 @@ for (const relation of graph.links) {
       `Relation '${relation.source} -> ${relation.target}' has invalid type '${relation.type}'.`,
     );
   }
+  if (graphNodeById.get(relation.source)?.generated) {
+    fail(`Relation source '${relation.source}' is generated.`);
+  }
+  if (graphNodeById.get(relation.target)?.generated) {
+    fail(`Relation target '${relation.target}' is generated.`);
+  }
   for (const sourceId of relation.evidence || []) {
     if (!sourceIds.has(sourceId)) {
       warn(
@@ -86,9 +141,24 @@ for (const relation of relations) {
 }
 
 for (const source of sources) {
+  if (
+    (source.type === "exercise" || source.type === "pastExam") &&
+    !drillsBySource.has(source.id)
+  ) {
+    fail(`Source '${source.id}' has no drill tied to that source.`);
+  }
+  if (
+    source.type === "pastExam" &&
+    (!source.taskTypes || source.taskTypes.length === 0)
+  ) {
+    fail(`Past-exam source '${source.id}' has no task type.`);
+  }
   for (const id of source.concepts || []) {
     if (!conceptIds.has(id))
       fail(`Source '${source.id}' references missing concept '${id}'.`);
+    if (graphNodeById.get(id)?.generated) {
+      fail(`Source '${source.id}' references generated concept '${id}'.`);
+    }
   }
   for (const task of source.taskTypes || []) {
     if (!validTaskTypes.has(task))
