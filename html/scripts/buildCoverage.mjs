@@ -1,5 +1,6 @@
 import fs from "node:fs";
-import { loadGraphContext } from "./graphLoader.mjs";
+import path from "node:path";
+import { htmlRoot, loadGraphContext } from "./graphLoader.mjs";
 
 const { codeCards, sources, drills, graph } = loadGraphContext();
 const nodes = new Map(graph.nodes.map((node) => [node.id, node]));
@@ -246,7 +247,7 @@ const uncoveredHighPriority = highPriorityWithoutDrill.length
 
 const table = `## Coverage Dashboard
 
-Generated from \`js/sources.js\`.
+Generated from \`html/js/sources.js\`.
 
 - Sources: ${sources.length}
 - Concepts: ${graph.nodes.length}
@@ -269,7 +270,7 @@ ${sourceTable("Exercise Coverage Ex00-Ex11", exerciseSources)}
 ${sourceTable("Past Exam Coverage FS23-FS25", pastExamSources)}
 `;
 
-const readmePath = "README.md";
+const readmePath = path.resolve(htmlRoot, "..", "README.md");
 const current = fs.readFileSync(readmePath, "utf8");
 const start = current.indexOf("## Coverage Dashboard");
 const end = current.indexOf("## Local Commands");
