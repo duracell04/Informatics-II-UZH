@@ -1,5 +1,10 @@
 import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import vm from "node:vm";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+export const htmlRoot = path.resolve(scriptDir, "..");
 
 const files = [
   "js/data.js",
@@ -20,7 +25,11 @@ export function loadGraphContext() {
   };
   vm.createContext(context);
   for (const file of files) {
-    vm.runInContext(fs.readFileSync(file, "utf8"), context, { filename: file });
+    vm.runInContext(
+      fs.readFileSync(path.join(htmlRoot, file), "utf8"),
+      context,
+      { filename: file },
+    );
   }
   return vm.runInContext(
     `({
