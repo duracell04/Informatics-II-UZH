@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "format": "prettier --write js/*.js css/style.css index.html README.md scripts/*.mjs",
-    "format:check": "prettier --check js/*.js css/style.css index.html README.md scripts/*.mjs",
+    "format": "prettier --write js/*.js css/style.css index.html ../README.md scripts/*.mjs",
+    "format:check": "prettier --check js/*.js css/style.css index.html ../README.md scripts/*.mjs",
     "validate": "node scripts/validateGraph.mjs",
     "coverage": "node scripts/buildCoverage.mjs"
   },
