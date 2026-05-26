@@ -2,9 +2,11 @@
 
 Static semantic study graph for Informatics II at UZH. Concepts, mechanisms, algorithms, proof patterns, C/pseudocode cards, drills, and exam/exercise evidence are merged into an evidence-weighted learning map.
 
+The static HTML app lives in `html/`. Supporting markdown notes live in `markdown/`.
+
 ## Coverage Dashboard
 
-Generated from `js/sources.js`.
+Generated from `html/js/sources.js`.
 
 - Sources: 54
 - Concepts: 229
@@ -92,8 +94,8 @@ Alias notes: `biggestPlus` = `bigPlus`; all simple paths = `allPaths`; k-hop = `
 ## Local Commands
 
 ```bash
-npm run format
-npm run format:check
-npm run validate
-npm run coverage
+npm --prefix html run format
+npm --prefix html run format:check
+npm --prefix html run validate
+npm --prefix html run coverage
 ```
